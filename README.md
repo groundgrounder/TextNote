@@ -1,7 +1,7 @@
 # TextNote
 
 Android 纯文本编辑器。核心约定是**文档保真**：打开看一眼再保存，文件不该有任何字节变化。
-v0.1.0，minSdk 26 / target 35。
+minSdk 26 / target 35。
 
 ## 功能
 
