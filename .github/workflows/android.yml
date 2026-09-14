@@ -6,20 +6,23 @@ on:
     tags: ["v*"]
   workflow_dispatch:
 
+# action 版本对齐各仓库当前的 latest（2026-09-14 查过）。
+# 原来的 checkout@v4 / setup-java@v4 / upload-artifact@v4 / setup-android@v3 / gh-release@v2
+# 都还跑在 Node 20 上，GitHub 已标 deprecation（被强制用 Node 24 运行）。
 jobs:
   build:
     runs-on: ubuntu-latest
     steps:
-      - uses: actions/checkout@v4
+      - uses: actions/checkout@v7
 
       - name: JDK 17
-        uses: actions/setup-java@v4
+        uses: actions/setup-java@v6
         with:
           distribution: temurin
           java-version: "17"
 
       - name: Android SDK
-        uses: android-actions/setup-android@v3
+        uses: android-actions/setup-android@v4
 
       # 密钥不入库，从 secret 还原。没配 secret 时照常构建（产出的包不带签名），
       # 但**打 tag 发布时必须配**——否则新版覆盖不了旧版，而用户看到的只是一句
@@ -59,7 +62,8 @@ jobs:
         if: startsWith(github.ref, 'refs/tags/v')
         run: |
           set -euo pipefail
-          BT="$(ls -d "$ANDROID_SDK_ROOT"/build-tools/*/ | sort -V | tail -1)"
+          SDK="${ANDROID_SDK_ROOT:-$ANDROID_HOME}"
+          BT="$(ls -d "$SDK"/build-tools/*/ | sort -V | tail -1)"
           DN="$("$BT/apksigner" verify --print-certs \
                 app/build/outputs/apk/release/app-release.apk | grep -m1 'certificate DN')"
           echo "$DN"
@@ -69,7 +73,7 @@ jobs:
           esac
 
       - name: 上传 APK 构件
-        uses: actions/upload-artifact@v4
+        uses: actions/upload-artifact@v7
         with:
           name: textnote-apks
           path: app/build/outputs/apk/**/*.apk
@@ -82,7 +86,7 @@ jobs:
     permissions:
       contents: write
     steps:
-      - uses: actions/download-artifact@v4
+      - uses: actions/download-artifact@v8
         with:
           name: textnote-apks
           path: apks
@@ -96,7 +100,7 @@ jobs:
           ls -l ./*.apk
 
       - name: 创建 Release
-        uses: softprops/action-gh-release@v2
+        uses: softprops/action-gh-release@v3
         with:
           files: "TextNote-*.apk"
           generate_release_notes: true
