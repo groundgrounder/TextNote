@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TextNote</string>
+
+    <string name="open_file">Open file</string>
+    <string name="new_file">New file</string>
+    <string name="save_as">Save as…</string>
+    <string name="more_actions">More actions</string>
+    <string name="save">Save</string>
+    <string name="undo">Undo</string>
+    <string name="redo">Redo</string>
+    <string name="saved">Saved</string>
+    <string name="save_failed">Save failed: no permission to write this file</string>
+    <string name="read_only">Read-only</string>
+    <string name="untitled">Untitled.txt</string>
+    <string name="back_to_files">Back to files</string>
+
+    <string name="open_hint">Tap “New file” to start writing, or “Open file” to pick an existing text file\nText files can also be opened from a file manager</string>
+
+    <string name="editor_placeholder">Start typing…</string>
+
+    <string name="stats_format">%1$d chars · %2$d lines</string>
+    <string name="line_column">Ln %1$d, Col %2$d</string>
+    <string name="syntax_auto">Auto</string>
+    <string name="syntax_desc_auto">Syntax: %1$s (auto)</string>
+    <string name="syntax_desc_manual">Syntax: %1$s (manual)</string>
+
+    <string name="document_unavailable_message">TextNote no longer has access to this file, or it was moved or deleted.</string>
+
+    <string name="document_too_large_title">File too large to open</string>
+    <string name="document_too_large_message">This file is larger than %1$s, over the %2$s that can be read into memory.</string>
+    <string name="document_too_large_reason">TextNote reads the whole file into memory to show it, so beyond this size opening it would run the app out of memory. Splitting the file with another tool will let you open it here.</string>
+    <string name="document_too_large_back">Pick another file</string>
+    <string name="document_read_only">Read-only — %1$d chars is past the %2$s editable limit, so you can read and search but not type</string>
+    <string name="document_slow">Large file (%1$d chars) — typing may lag</string>
+    <string name="readonly_line_truncated">⋯ %1$d chars on this line, truncated</string>
+
+    <string name="search">Find</string>
+    <string name="search_query_hint">Find</string>
+    <string name="search_replace_hint">Replace</string>
+    <string name="search_replace">Replace</string>
+    <string name="search_replace_all">All</string>
+    <string name="search_close">Close find panel</string>
+    <string name="search_prev">Previous match</string>
+    <string name="search_next">Next match</string>
+    <string name="search_regex">Use regular expression</string>
+    <string name="search_case">Case sensitive</string>
+    <string name="search_word">Whole word</string>
+    <string name="search_count">%1$d%2$s found</string>
+    <string name="search_position">%1$d/%2$d</string>
+    <string name="search_no_match">No match</string>
+    <string name="search_invalid_regex">Invalid pattern</string>
+    <string name="search_replaced">%1$d replaced</string>
+
+    <string name="draft_found">A draft from your last edit was found</string>
+    <string name="restore">Restore</string>
+    <string name="discard">Discard</string>
+    <string name="unsaved_drafts">Unsaved drafts</string>
+    <string name="draft_chars_format">%1$d chars</string>
+    <string name="draft_expires_in">Auto-cleared in %1$d days</string>
+
+    <string name="recent_files">Recently opened</string>
+    <string name="recent_needs_permission">Permission lost — tap to pick this file again</string>
+    <string name="remove_from_list">Remove from list</string>
+
+    <string name="external_change_modified">This file was changed by another app</string>
+    <string name="external_change_gone">This file was moved or deleted</string>
+    <string name="external_change_reload">Reload</string>
+    <string name="external_change_keep">Keep mine</string>
+    <string name="external_change_dismiss">Dismiss</string>
+
+    <string name="settings_title">Settings</string>
+    <string name="settings_open">Settings</string>
+    <string name="settings_appearance">Appearance</string>
+    <string name="settings_text">Text</string>
+    <string name="back">Back</string>
+    <string name="theme_system">System</string>
+    <string name="theme_light">Light</string>
+    <string name="theme_dark">Dark</string>
+    <string name="dynamic_color_title">Use wallpaper colors</string>
+    <string name="dynamic_color_desc">Takes accent colors from your wallpaper</string>
+    <string name="dynamic_color_unsupported">Requires Android 12 or newer</string>
+    <string name="font_monospace">Monospace</string>
+    <string name="font_sans">Sans serif</string>
+    <string name="font_serif">Serif</string>
+    <string name="font_size_label">Font size</string>
+    <string name="line_height_label">Line height</string>
+</resources>

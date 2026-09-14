@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TextNote</string>
+
+    <string name="open_file">打开文件</string>
+    <string name="new_file">新建文件</string>
+    <string name="save_as">另存为…</string>
+    <string name="more_actions">更多操作</string>
+    <string name="save">保存</string>
+    <string name="undo">撤销</string>
+    <string name="redo">重做</string>
+    <string name="saved">已保存</string>
+    <string name="save_failed">保存失败：没有该文件的写入权限</string>
+    <string name="read_only">只读</string>
+    <string name="untitled">未命名.txt</string>
+    <string name="back_to_files">返回文件列表</string>
+
+    <string name="open_hint">点「新建文件」开始写，或点「打开文件」选一个已有的文本文件\n也可以在文件管理器里用 TextNote 打开</string>
+
+    <string name="editor_placeholder">开始输入…</string>
+
+    <string name="stats_format">%1$d 字符 · %2$d 行</string>
+    <string name="line_column">第 %1$d 行，第 %2$d 列</string>
+    <string name="syntax_auto">自动</string>
+    <string name="syntax_desc_auto">语法：%1$s（自动识别）</string>
+    <string name="syntax_desc_manual">语法：%1$s（手动指定）</string>
+
+    <string name="document_unavailable_message">TextNote 已没有该文件的访问权限，或它已被移动、删除。</string>
+
+    <string name="document_too_large_title">文件过大，无法打开</string>
+    <string name="document_too_large_message">这个文件大于 %1$s，超过了能读进内存的上限（%2$s）。</string>
+    <string name="document_too_large_reason">TextNote 要把整份文件读进内存才能显示，超过这个体积打开会把应用撑爆。用其它工具把它拆小之后再打开。</string>
+    <string name="document_too_large_back">选择其它文件</string>
+    <string name="document_read_only">只读浏览：%1$d 字符，超过可编辑上限（%2$s），可以阅读和查找，但不能输入</string>
+    <string name="document_slow">文件较大（%1$d 字符），输入可能卡顿</string>
+    <string name="readonly_line_truncated">⋯ 本行共 %1$d 字符，已截断</string>
+
+    <string name="search">查找</string>
+    <string name="search_query_hint">查找</string>
+    <string name="search_replace_hint">替换为</string>
+    <string name="search_replace">替换</string>
+    <string name="search_replace_all">全部</string>
+    <string name="search_close">关闭查找栏</string>
+    <string name="search_prev">上一处</string>
+    <string name="search_next">下一处</string>
+    <string name="search_regex">使用正则表达式</string>
+    <string name="search_case">区分大小写</string>
+    <string name="search_word">整词匹配</string>
+    <string name="search_count">%1$d%2$s 处匹配</string>
+    <string name="search_position">%1$d/%2$d</string>
+    <string name="search_no_match">无匹配</string>
+    <string name="search_invalid_regex">表达式无效</string>
+    <string name="search_replaced">已替换 %1$d 处</string>
+
+    <string name="draft_found">发现上次编辑留下的草稿</string>
+    <string name="restore">恢复</string>
+    <string name="discard">丢弃</string>
+    <string name="unsaved_drafts">未保存的草稿</string>
+    <string name="draft_chars_format">%1$d 字符</string>
+    <string name="draft_expires_in">%1$d 天后自动清理</string>
+
+    <string name="recent_files">最近打开</string>
+    <string name="recent_needs_permission">授权已失效 — 点击重新选择这个文件</string>
+    <string name="remove_from_list">从列表移除</string>
+
+    <string name="external_change_modified">这个文件在别的应用里被修改了</string>
+    <string name="external_change_gone">这个文件已被移动或删除</string>
+    <string name="external_change_reload">重新加载</string>
+    <string name="external_change_keep">保留我的</string>
+    <string name="external_change_dismiss">知道了</string>
+
+    <string name="settings_title">设置</string>
+    <string name="settings_open">设置</string>
+    <string name="settings_appearance">外观</string>
+    <string name="settings_text">文字</string>
+    <string name="back">返回</string>
+    <string name="theme_system">跟随系统</string>
+    <string name="theme_light">浅色</string>
+    <string name="theme_dark">深色</string>
+    <string name="dynamic_color_title">使用壁纸取色</string>
+    <string name="dynamic_color_desc">从壁纸取强调色</string>
+    <string name="dynamic_color_unsupported">需要 Android 12 及以上</string>
+    <string name="font_monospace">等宽</string>
+    <string name="font_sans">无衬线</string>
+    <string name="font_serif">衬线</string>
+    <string name="font_size_label">字号</string>
+    <string name="line_height_label">行距</string>
+</resources>

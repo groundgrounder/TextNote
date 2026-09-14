@@ -1,0 +1,88 @@
+<?xml version="1.0" encoding="utf-8"?>
+<resources>
+    <string name="app_name">TextNote</string>
+
+    <string name="open_file">開啟檔案</string>
+    <string name="new_file">新增檔案</string>
+    <string name="save_as">另存新檔…</string>
+    <string name="more_actions">更多操作</string>
+    <string name="save">儲存</string>
+    <string name="undo">復原</string>
+    <string name="redo">重做</string>
+    <string name="saved">已儲存</string>
+    <string name="save_failed">儲存失敗：沒有這個檔案的寫入權限</string>
+    <string name="read_only">唯讀</string>
+    <string name="untitled">未命名.txt</string>
+    <string name="back_to_files">返回檔案列表</string>
+
+    <string name="open_hint">點「新增檔案」開始寫，或點「開啟檔案」選一個既有的文字檔\n也可以在檔案管理員裡用 TextNote 開啟</string>
+
+    <string name="editor_placeholder">開始輸入…</string>
+
+    <string name="stats_format">%1$d 字元 · %2$d 行</string>
+    <string name="line_column">第 %1$d 行，第 %2$d 欄</string>
+    <string name="syntax_auto">自動</string>
+    <string name="syntax_desc_auto">語法：%1$s（自動辨識）</string>
+    <string name="syntax_desc_manual">語法：%1$s（手動指定）</string>
+
+    <string name="document_unavailable_message">TextNote 已沒有這個檔案的存取權限，或它已被移動、刪除。</string>
+
+    <string name="document_too_large_title">檔案過大，無法開啟</string>
+    <string name="document_too_large_message">這個檔案大於 %1$s，超過了能讀進記憶體的上限（%2$s）。</string>
+    <string name="document_too_large_reason">TextNote 要把整份檔案讀進記憶體才能顯示，超過這個大小開啟會讓應用程式記憶體不足。用其他工具把它拆小之後再開啟。</string>
+    <string name="document_too_large_back">選擇其他檔案</string>
+    <string name="document_read_only">唯讀瀏覽：%1$d 字元，超過可編輯上限（%2$s），可以閱讀和搜尋，但不能輸入</string>
+    <string name="document_slow">檔案較大（%1$d 字元），輸入可能卡頓</string>
+    <string name="readonly_line_truncated">⋯ 本行共 %1$d 字元，已截斷</string>
+
+    <string name="search">搜尋</string>
+    <string name="search_query_hint">搜尋</string>
+    <string name="search_replace_hint">取代為</string>
+    <string name="search_replace">取代</string>
+    <string name="search_replace_all">全部</string>
+    <string name="search_close">關閉搜尋列</string>
+    <string name="search_prev">上一處</string>
+    <string name="search_next">下一處</string>
+    <string name="search_regex">使用正規表示式</string>
+    <string name="search_case">區分大小寫</string>
+    <string name="search_word">完整字詞</string>
+    <string name="search_count">%1$d%2$s 處符合</string>
+    <string name="search_position">%1$d/%2$d</string>
+    <string name="search_no_match">無符合</string>
+    <string name="search_invalid_regex">表示式無效</string>
+    <string name="search_replaced">已取代 %1$d 處</string>
+
+    <string name="draft_found">發現上次編輯留下的草稿</string>
+    <string name="restore">還原</string>
+    <string name="discard">捨棄</string>
+    <string name="unsaved_drafts">未儲存的草稿</string>
+    <string name="draft_chars_format">%1$d 字元</string>
+    <string name="draft_expires_in">%1$d 天後自動清理</string>
+
+    <string name="recent_files">最近開啟</string>
+    <string name="recent_needs_permission">授權已失效 — 點擊重新選擇這個檔案</string>
+    <string name="remove_from_list">從列表移除</string>
+
+    <string name="external_change_modified">這個檔案在其他應用程式裡被修改了</string>
+    <string name="external_change_gone">這個檔案已被移動或刪除</string>
+    <string name="external_change_reload">重新載入</string>
+    <string name="external_change_keep">保留我的版本</string>
+    <string name="external_change_dismiss">知道了</string>
+
+    <string name="settings_title">設定</string>
+    <string name="settings_open">設定</string>
+    <string name="settings_appearance">外觀</string>
+    <string name="settings_text">文字</string>
+    <string name="back">返回</string>
+    <string name="theme_system">跟隨系統</string>
+    <string name="theme_light">淺色</string>
+    <string name="theme_dark">深色</string>
+    <string name="dynamic_color_title">使用桌布配色</string>
+    <string name="dynamic_color_desc">從桌布取強調色</string>
+    <string name="dynamic_color_unsupported">需要 Android 12 或以上</string>
+    <string name="font_monospace">等寬</string>
+    <string name="font_sans">無襯線</string>
+    <string name="font_serif">襯線</string>
+    <string name="font_size_label">字型大小</string>
+    <string name="line_height_label">行距</string>
+</resources>

@@ -1,0 +1,22 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  debug 源集专有的清单：只把性能对照用的 SpikeActivity 注册进去，release 包里不存在。
+
+  exported 必须是 true —— 用 adb 启动的是 shell 进程（另一个 UID），非导出的组件它起不来。
+  这个 Activity 只在 debug 构建里存在，所以这个放行不会影响正式包。
+-->
+<manifest xmlns:android="http://schemas.android.com/apk/res/android">
+
+    <application>
+
+        <activity
+            android:name=".spike.SpikeActivity"
+            android:exported="true"
+            android:label="Spike"
+            android:launchMode="singleTask"
+            android:theme="@style/Theme.TextNote"
+            android:windowSoftInputMode="adjustResize" />
+
+    </application>
+
+</manifest>

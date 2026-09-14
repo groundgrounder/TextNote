@@ -1,0 +1,59 @@
+name: Android CI
+
+on:
+  push:
+    branches: [main]
+    tags: ["v*"]
+  workflow_dispatch:
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - name: JDK 17
+        uses: actions/setup-java@v4
+        with:
+          distribution: temurin
+          java-version: "17"
+
+      - name: Android SDK
+        uses: android-actions/setup-android@v3
+
+      - name: 构建 Debug APK
+        run: ./gradlew assembleDebug --no-daemon
+
+      # core/ 的纯逻辑断言。只依赖 JDK 与 assembleDebug 产出的 class，不需要 Android SDK。
+      # 放在构建之后：断言复用的是 Gradle 编译产物。
+      - name: 跑 core 层断言
+        run: |
+          chmod +x tools/run_checks.sh
+          tools/run_checks.sh
+
+      - name: 上传 APK 构件
+        uses: actions/upload-artifact@v4
+        with:
+          name: textnote-debug-apk
+          path: app/build/outputs/apk/debug/app-debug.apk
+
+  release:
+    # 仅打 v* tag 时发 Release，附带 APK
+    if: startsWith(github.ref, 'refs/tags/v')
+    needs: build
+    runs-on: ubuntu-latest
+    permissions:
+      contents: write
+    steps:
+      - uses: actions/download-artifact@v4
+        with:
+          name: textnote-debug-apk
+
+      - name: 重命名为带版本号的文件名
+        run: mv app-debug.apk "TextNote-${{ github.ref_name }}.apk"
+
+      - name: 创建 Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: "TextNote-${{ github.ref_name }}.apk"
+          generate_release_notes: true

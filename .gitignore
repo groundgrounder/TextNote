@@ -1,0 +1,27 @@
+# 构建产物
+.gradle/
+.kotlin/
+build/
+*/build/
+
+# 本机配置（含本机 SDK 路径，勿上传）
+local.properties
+
+# IDE
+.idea/
+*.iml
+.cxx/
+
+# 系统文件
+.DS_Store
+
+# Python 字节码（tools/device 下的脚本会现场生成，没必要进版本库）
+__pycache__/
+*.pyc
+
+# 本项目的工作区数据（截图、记忆等），不进版本库
+.workbuddy/
+
+# 打包签名（如有）
+*.jks
+*.keystore
