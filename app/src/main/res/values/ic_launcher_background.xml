@@ -1,4 +1,5 @@
 <?xml version="1.0" encoding="utf-8"?>
 <resources>
-    <color name="ic_launcher_background">#4A5ACF</color>
+    <!-- 深青绿：同类应用多半用蓝紫，选这个在启动器上一眼能认出来 -->
+    <color name="ic_launcher_background">#12655A</color>
 </resources>

@@ -1,32 +1,41 @@
 <?xml version="1.0" encoding="utf-8"?>
-<!-- MarkNote 图标前景：Markdown「M↓」记号，108x108 视口，图形收在中心 66dp 安全区内 -->
+<!--
+  TextNote 图标前景：三行文本 + 一个插入符，108x108 视口，图形收在中心 66dp 安全区内。
+
+  不用字母记号（同类编辑器图标几乎都用字母，撞车）：画的是编辑器里最朴素的画面——
+  几行字，和一个正在闪烁的光标。全是直线与圆头，小尺寸下也不会糊成一团。
+-->
 <vector xmlns:android="http://schemas.android.com/apk/res/android"
     android:width="108dp"
     android:height="108dp"
     android:viewportWidth="108"
     android:viewportHeight="108">
 
-    <!-- M -->
+    <!-- 三行文本：长短交错，看起来像段落收尾，而不是一个列表 -->
     <path
-        android:pathData="M30,70 L30,38 L42,56 L54,38 L54,70"
+        android:pathData="M26,40 L72,40"
         android:strokeColor="#FFFFFF"
-        android:strokeWidth="7"
+        android:strokeWidth="8"
         android:strokeLineCap="round"
-        android:strokeLineJoin="round"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M26,54 L56,54"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="8"
+        android:strokeLineCap="round"
+        android:fillColor="#00000000" />
+    <path
+        android:pathData="M26,68 L64,68"
+        android:strokeColor="#FFFFFF"
+        android:strokeWidth="8"
+        android:strokeLineCap="round"
         android:fillColor="#00000000" />
 
-    <!-- ↓（强调色，monochrome 主题图标下自动统一为单色） -->
+    <!-- 插入符：正在输入的位置。monochrome 主题图标下与文本行一起被统一着色 -->
     <path
-        android:pathData="M71,38 L71,61"
-        android:strokeColor="#FFD54F"
-        android:strokeWidth="7"
+        android:pathData="M78,62 L78,76"
+        android:strokeColor="#7FE9D4"
+        android:strokeWidth="8"
         android:strokeLineCap="round"
-        android:fillColor="#00000000" />
-    <path
-        android:pathData="M63,54 L71,64 L79,54"
-        android:strokeColor="#FFD54F"
-        android:strokeWidth="7"
-        android:strokeLineCap="round"
-        android:strokeLineJoin="round"
         android:fillColor="#00000000" />
 </vector>
