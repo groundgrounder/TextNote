@@ -1,7 +1,21 @@
+import java.util.Properties
+
 plugins {
     id("com.android.application")
     id("org.jetbrains.kotlin.android")
     id("org.jetbrains.kotlin.plugin.compose")
+}
+
+/**
+ * 签名密钥从根目录的 `keystore.properties` 读（该文件与 `keystore/` 一起被 gitignore）。
+ *
+ * **没有它也要能构建**——新 clone 的机器、还没配 secret 的 CI，都不该因为缺密钥而失败。
+ * 那种情况下 release 包照常产出，只是签的是假签名、不能与正式包互相覆盖安装。
+ * 兜底不能省：否则任何没密钥的环境都会直接构建失败。
+ */
+val keystoreProps = Properties().apply {
+    val f = rootProject.file("keystore.properties")
+    if (f.exists()) f.inputStream().use { load(it) }
 }
 
 android {
@@ -16,9 +30,25 @@ android {
         versionName = "0.1.0"
     }
 
+    // 只有拿得到密钥时才声明它，buildTypes 那边再按需挂上。
+    signingConfigs {
+        if (keystoreProps.getProperty("storeFile") != null) {
+            create("release") {
+                storeFile = rootProject.file(keystoreProps.getProperty("storeFile"))
+                storePassword = keystoreProps.getProperty("storePassword")
+                keyAlias = keystoreProps.getProperty("keyAlias")
+                keyPassword = keystoreProps.getProperty("keyPassword")
+            }
+        }
+    }
+
     buildTypes {
         release {
-            isMinifyEnabled = false
+            // 必须开：`material-icons-extended` 带进 5000+ 个图标，而项目只用了 12 个。
+            // 不裁剪的话 dex 有 32MB（包里最大的一块），裁剪后未用到的全被移除。
+            isMinifyEnabled = true
+            // 有密钥就挂上；没有则保持 AGP 默认——仍能构建出未签名的包。
+            signingConfigs.findByName("release")?.let { signingConfig = it }
         }
     }
 

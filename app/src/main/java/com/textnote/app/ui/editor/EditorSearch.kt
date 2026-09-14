@@ -2,6 +2,7 @@ package com.textnote.app.ui.editor
 
 import androidx.compose.runtime.derivedStateOf
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.setValue
 import com.textnote.app.core.SearchEngine
@@ -59,7 +60,7 @@ class EditorSearch(private val textProvider: () -> String) {
      * 当前是第几处，-1 表示还没跳转过（此时界面只显示总数，不显示 x/y）。
      * 用 -1 而不是 0 作初值，是因为打开查找面板时不该自作主张把光标挪走。
      */
-    var currentIndex by mutableStateOf(-1)
+    var currentIndex by mutableIntStateOf(-1)
         private set
 
     /** 打开面板。若此刻有选区，用它作为初始关键词——这是编辑器里通行且好用的小动作 */

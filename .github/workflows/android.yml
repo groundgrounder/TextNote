@@ -21,8 +21,30 @@ jobs:
       - name: Android SDK
         uses: android-actions/setup-android@v3
 
-      - name: 构建 Debug APK
-        run: ./gradlew assembleDebug --no-daemon
+      # 密钥不入库，从 secret 还原。没配 secret 时照常构建（产出的包不带签名），
+      # 但**打 tag 发布时必须配**——否则新版覆盖不了旧版，而用户看到的只是一句
+      # 「应用未安装」，很难联想到签名。
+      - name: 还原打包密钥
+        env:
+          KS_BASE64: ${{ secrets.SIGNING_KEYSTORE_BASE64 }}
+          KS_PASS: ${{ secrets.SIGNING_KEYSTORE_PASSWORD }}
+          IS_TAG: ${{ startsWith(github.ref, 'refs/tags/v') }}
+        run: |
+          if [ -n "$KS_BASE64" ] && [ -n "$KS_PASS" ]; then
+            mkdir -p keystore
+            printf '%s' "$KS_BASE64" | base64 -d > keystore/textnote.jks
+            printf 'storeFile=keystore/textnote.jks\nstorePassword=%s\nkeyAlias=textnote\nkeyPassword=%s\n' \
+              "$KS_PASS" "$KS_PASS" > keystore.properties
+            echo "已还原签名密钥"
+          elif [ "$IS_TAG" = "true" ]; then
+            echo "::error::打 tag 发布但缺少 SIGNING_KEYSTORE_BASE64 / SIGNING_KEYSTORE_PASSWORD"
+            exit 1
+          else
+            echo "未配签名 secret：release 包将不带签名（仅够做 CI 冒烟）"
+          fi
+
+      - name: 构建 Debug 与 Release
+        run: ./gradlew assembleDebug assembleRelease --no-daemon
 
       # core/ 的纯逻辑断言。只依赖 JDK 与 assembleDebug 产出的 class，不需要 Android SDK。
       # 放在构建之后：断言复用的是 Gradle 编译产物。
@@ -31,14 +53,29 @@ jobs:
           chmod +x tools/run_checks.sh
           tools/run_checks.sh
 
+      # 「还原了密钥」不等于「构建用上了」。打 tag 时核一下产物证书——
+      # 这条门禁挡的正是「密钥在、包却签成了 debug」这种静默失败。
+      - name: 校验签名未退回 debug 密钥
+        if: startsWith(github.ref, 'refs/tags/v')
+        run: |
+          set -euo pipefail
+          BT="$(ls -d "$ANDROID_SDK_ROOT"/build-tools/*/ | sort -V | tail -1)"
+          DN="$("$BT/apksigner" verify --print-certs \
+                app/build/outputs/apk/release/app-release.apk | grep -m1 'certificate DN')"
+          echo "$DN"
+          case "$DN" in
+            *"CN=Android Debug"*)
+              echo "::error::签名退回 debug 密钥，用户无法覆盖安装"; exit 1 ;;
+          esac
+
       - name: 上传 APK 构件
         uses: actions/upload-artifact@v4
         with:
-          name: textnote-debug-apk
-          path: app/build/outputs/apk/debug/app-debug.apk
+          name: textnote-apks
+          path: app/build/outputs/apk/**/*.apk
 
   release:
-    # 仅打 v* tag 时发 Release，附带 APK
+    # 仅打 v* tag 时发 Release，附上**已签名**的 release 包
     if: startsWith(github.ref, 'refs/tags/v')
     needs: build
     runs-on: ubuntu-latest
@@ -47,13 +84,19 @@ jobs:
     steps:
       - uses: actions/download-artifact@v4
         with:
-          name: textnote-debug-apk
+          name: textnote-apks
+          path: apks
 
-      - name: 重命名为带版本号的文件名
-        run: mv app-debug.apk "TextNote-${{ github.ref_name }}.apk"
+      - name: 挑出 release 包并定名
+        run: |
+          set -euo pipefail
+          SRC="$(find apks -name 'app-release*.apk' | head -1)"
+          [ -n "$SRC" ] || { echo "::error::产物里找不到 release APK"; exit 1; }
+          cp "$SRC" "TextNote-${{ github.ref_name }}.apk"
+          ls -l ./*.apk
 
       - name: 创建 Release
         uses: softprops/action-gh-release@v2
         with:
-          files: "TextNote-${{ github.ref_name }}.apk"
+          files: "TextNote-*.apk"
           generate_release_notes: true

@@ -42,6 +42,7 @@ import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -131,9 +132,13 @@ fun EditorScreen(
     val matchBackground = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.55f)
     val currentMatchBackground = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.45f)
 
-    // 系统返回键回到首页，而不是直接退出应用：用户在这一层的心智是「文档里」，
-    // 按返回应该是退出文档，不是退出应用。
-    BackHandler(onBack = onClose)
+    // 系统返回键分两级：查找面板开着时先收起它，否则回到首页。
+    // 少了前面那一级，面板开着按返回会直接退到首页——面板是浮在文档上的一层，
+    // 用户按返回想收起的是它，结果文档一起没了（还要重新打开一次）。
+    // 面板之外仍是「退出文档而不是退出应用」：用户在这一层的心智是「文档里」。
+    BackHandler {
+        if (viewModel.search.visible) viewModel.closeSearch() else onClose()
+    }
 
     Scaffold(
         modifier = modifier,
@@ -387,7 +392,7 @@ private fun EditorField(
     val bodyStyle = LocalEditorTextStyle.current
     val scrollState = rememberScrollState()
     var layoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
-    var viewportHeight by remember { mutableStateOf(0) }
+    var viewportHeight by remember { mutableIntStateOf(0) }
 
     val transformation = remember(value.text, tokens, styles, matches, currentMatch) {
         if (tokens.isEmpty() && matches.isEmpty()) {

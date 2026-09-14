@@ -25,3 +25,5 @@ __pycache__/
 # 打包签名（如有）
 *.jks
 *.keystore
+# 密钥口令：与 keystore 一起只留在本机 / CI secret 里
+keystore.properties

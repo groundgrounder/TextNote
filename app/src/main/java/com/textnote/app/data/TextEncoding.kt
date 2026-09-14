@@ -74,8 +74,25 @@ object TextEncoding {
      *
      * 与 [decode] 的区别：这里的末尾很可能是被切开的半个多字节字符，逐字节严格解码必然
      * 失败。所以每个候选编码都额外容忍丢掉末尾 1~3 个残字节再试。
+     *
+     * **BOM 必须与 [decode] 同样优先采信**。少了这一步，同一个文件会出现两种结果：
+     * 最近列表（走这里）里 UTF-16 文件的摘要是乱码、UTF-8 BOM 文件的摘要开头多一个不可见的
+     * U+FEFF，而点开之后的正文（走 [decode]）却完全正常——用户只会以为文件坏了，
+     * 或者以为列表里的链接指错了地方。
      */
     fun decodeTruncated(bytes: ByteArray): DecodedText {
+        bomAt(bytes)?.let { (charset, bomLength) ->
+            if (bytes.size <= bomLength) {
+                // 只有 BOM、没有正文（空文件）
+                return DecodedText("", DocumentEncoding(charset, withBom = true))
+            }
+            // UTF-16 的末尾常常被切在半个码元上，所以这里用宽松解码而不是 strictDecode：
+            // 宁可最后一个字符是替换符，也好过为了「严格」把整段退回 UTF-8 变成乱码。
+            return DecodedText(
+                String(bytes, bomLength, bytes.size - bomLength, charset),
+                DocumentEncoding(charset, withBom = true),
+            )
+        }
         for (charset in candidates) {
             for (dropped in 0..3) {
                 val usable = bytes.size - dropped

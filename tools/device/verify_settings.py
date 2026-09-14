@@ -110,6 +110,18 @@ def tap_desc(desc):
     return False
 
 
+def open_settings():
+    """从**文档界面**进设置页，走溢出菜单两步。
+
+    编辑器顶栏只留撤销/重做/查找/保存四个图标，设置与「另存为」被收进「更多操作」菜单；
+    content-desc=「设置」的那个按钮只存在于**首页**，在文档界面点不到（点了只会落空，
+    界面停在原处，后面的断言全会莫名其妙地失败）。本脚本所有用例都在文档界面。
+    """
+    if not tap_desc('更多操作'):
+        return False
+    time.sleep(1.2)
+    return tap_text('设置')
+
 def height_of(line_number="1"):
     """行号 Text 节点的高度 = 字体的自然行高。
 
@@ -174,7 +186,7 @@ check("打开文档，取到基线行高与行间隔", h0 is not None and g0 is 
 print("       基线：行号高 %s px，行间隔 %s px" % (h0, g0))
 
 print("=== 1. 进设置页 ===")
-tap_desc('设置')
+open_settings()
 wait_text('字号')
 t = texts()
 check("设置页出现（外观/文字分组都在）", any('外观' in x for x in t) and any('字号' in x for x in t))
@@ -196,7 +208,7 @@ check("字号变大：行间隔也增加", g1 is not None and g0 is not None and
 shot("m7-font-size-22.png")
 
 print("=== 3. 行距：再放大一档 ===")
-tap_desc('设置')
+open_settings()
 wait_text('字号')
 check("点到了 1.8 这个行距", tap_text('1.8'))
 time.sleep(1.5)
@@ -211,7 +223,7 @@ check("行距变大：行间隔进一步增加", g2 is not None and g1 is not No
 shot("m7-line-height-18.png")
 
 print("=== 4. 主题：深色 ===")
-tap_desc('设置')
+open_settings()
 wait_text('字号')
 check("点到了「深色」", tap_text('深色'))
 time.sleep(1.5)
@@ -222,7 +234,7 @@ shot("m7-theme-dark.png")
 # 颜色变化 dump 断言不了（节点没有颜色属性），深色效果看截图
 
 print("=== 5. 动态取色开关 ===")
-tap_desc('设置')
+open_settings()
 wait_text('壁纸')
 # Switch 的 content-desc 为空；它没有文本，靠「与『使用壁纸取色』标题同一行」配对
 row = find(exact_text='使用壁纸取色')

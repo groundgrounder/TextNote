@@ -4,7 +4,7 @@
 
 ## `checks/` —— core 层的纯逻辑断言
 
-**342 条断言**，测的是 `core/` 里不依赖 Android 运行时的部分：编码探测、行索引、行尾
+**372 条断言**，测的是 `core/` 里不依赖 Android 运行时的部分：编码探测、行索引、行尾
 往返、词法着色、搜索边界、撤销栈、体积上限的不变量。不需要模拟器，秒级完成。
 
 （条数以 `tools/run_checks.sh` 的汇总行为准，改完断言顺手把这里也改一下。）
@@ -31,6 +31,7 @@ tools/run_checks.sh          # 直接跑，不用先构建
 | `CheckUndo.java` | `UndoStack`：单段差分的**前后缀不重叠**、连续输入/退格合并、跨类型与超时不合并、redo 分支作废、双重上限淘汰、**差分数与正文对不上时清栈而不是硬改** |
 | `CheckSyntaxRegistry.java` | 15 种语法的扩展名归属与优先级（`jsx`/`tsx` 归 JS 而非 HTML）、按 id 取语法、认不出的扩展名退回纯文本 |
 | `CheckLimits.java` | `EditorLimits` 三档上限**单调有序**、`READ_BYTES >= OPEN_CHARS × 4` 等不变量 |
+| `CheckEncoding.java` | `TextEncoding` 的 BOM 优先、UTF-8→GB18030 探测顺序，以及 **`decode`（打开正文）与 `decodeTruncated`（列表摘要）对同一个文件必须认成同一种编码**；另含**全链路字节级往返**：LF/CRLF/CR × ASCII/GBK/UTF-8-BOM/UTF-16LE-BOM（比 `CheckLineIndex` 里那组多走一次 encode） |
 
 为什么要绕一圈、不放进 `app/src/test`：那个源集要引入 JUnit，而引入就得联网拉依赖；
 这些断言又完全不需要 Android 运行时，只需要 `core/` 的 class 和 kotlin-stdlib。
@@ -66,6 +67,7 @@ media id 每台设备都不一样，所以**不要在脚本里硬编码**——�
 | `verify_edit_ops.py` | 编辑操作的正确性：撤销/重做（含「连续输入合并成一步」「停顿后分成两步」「退到底后按钮禁用」），以及**连续替换不会原地打转**（`cat`→`catalog` 连点两次应得到两个 `catalog`） |
 | `verify_new_and_save_as.py` | 新建文档与另存为（走 SAF 的 `ACTION_CREATE_DOCUMENT`）：预填名、**整体迁到新 Uri 后各状态项不丢**、字节级往返（pull 回来比对）。绕不开系统 picker，**脚本不碰它的文件名输入框**——理由与另外三个坑写在文件头 |
 | `verify_syntax_switch.py` | 语法手动切换：手选后覆盖扩展名推断、**重开仍是手选**（持久化，按 Uri 存）、切回「自动」能退回、以及**切换不该把文档标脏**。判据用状态栏语法名的 `content-desc`，不用界面属性（Compose 上读不到 disabled） |
+| `verify_back_and_encoding.py` | 两条易静默回归的事：①**查找面板开着时返回键分级**（先收面板、再按才退文档——注意第一次 BACK 会被输入法吃掉，所以逐次按键看状态转移，别用固定次数猜）；②**编码探测的两条路径给同一答案**（`decodeTruncated` 的列表摘要 vs `decode` 的正文，UTF-16 文件曾是「列表乱码、点开正常」）。自造自清 UTF-16 fixture |
 | `repro_search_anr.py` | 回归那个曾经必 ANR 的序列（查找框一次性打进 10 个字符） |
 
 `kernel_bench.py` / `readonly_capacity.py` 依赖 debug 包里的 spike 工装
