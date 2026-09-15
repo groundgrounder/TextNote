@@ -23,6 +23,12 @@ jobs:
 
       - name: Android SDK
         uses: android-actions/setup-android@v4
+        with:
+          # 它的 `packages` 默认是 `tools platform-tools`，而 SDK Tools（包名 `tools`）
+          # 在新版 cmdline-tools 里已经被移除——2026-09-15 runner 镜像升到 20.0 之后，
+          # 那句默认值把构建卡死在 setup 阶段（`Failed to find package 'tools'`，20 秒失败），
+          # 跟被测代码毫无关系。构建只需要 platform-tools。
+          packages: "platform-tools"
 
       # 密钥不入库，从 secret 还原。没配 secret 时照常构建（产出的包不带签名），
       # 但**打 tag 发布时必须配**——否则新版覆盖不了旧版，而用户看到的只是一句
