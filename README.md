@@ -21,16 +21,6 @@ minSdk 26 / target 35。
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
 
-## 测试
-
-```bash
-tools/run_checks.sh                        # 372 条纯逻辑断言，不用设备，秒级
-python3 tools/device/make_fixtures.py      # 上机验证：先造测试数据
-python3 tools/device/verify_open_tiers.py  # 之后跑任意 verify_*.py
-```
-
-脚本清单、各自守什么、踩过的坑都在 `tools/README.md`。
-
 ## 架构
 
 `core/` 纯 Kotlin（禁 `androidx.compose.*` 与 `android.*`，可直接 JVM 实测）、`data/` SAF 读写与
@@ -41,11 +31,3 @@ python3 tools/device/verify_open_tiers.py  # 之后跑任意 verify_*.py
 - 超 20 万字符只能读不能改（自绘内核是 sora-editor 量级，不做）；不做 Markdown 预览
 - 不捆绑字体，只用系统三族；列号按 UTF-16 码元计，emoji 占 2 列
 - 不单独识别 Big5：GB18030 覆盖其编码空间，靠「读写同一编码」保真
-
-## 签名与发布
-
-Release 用 `keystore/textnote.jks` 签名，口令在根目录 `keystore.properties`（两者都不入库）。
-缺这个文件时构建仍会成功，只是产出未签名的包。
-
-推 `v*` tag 触发 CI 出包并发布 Release；CI 从 `SIGNING_KEYSTORE_BASE64` 与
-`SIGNING_KEYSTORE_PASSWORD` 还原密钥，并校验产物签名没有退回 debug 密钥。
