@@ -26,8 +26,8 @@ android {
         applicationId = "com.textnote.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 3
-        versionName = "0.1.2"
+        versionCode = 4
+        versionName = "0.1.3"
     }
 
     // 只有拿得到密钥时才声明它，buildTypes 那边再按需挂上。
