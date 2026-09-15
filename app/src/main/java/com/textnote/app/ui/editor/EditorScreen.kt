@@ -69,6 +69,7 @@ import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.text.BasicTextField
 import com.textnote.app.R
@@ -160,6 +161,11 @@ fun EditorScreen(
                         // 有未保存改动时加一个「•」，比另做一个编辑中标签更不占地方
                         text = if (viewModel.dirty) "• ${viewModel.fileName}" else viewModel.fileName,
                         style = MaterialTheme.typography.titleMedium,
+                        // 顶栏的高度是按一行标题算的，放任长文件名换行会折成好几行，
+                        // 而文字块仍在容器里垂直居中——于是上下都溢出，跟左边的返回箭头、
+                        // 右边的图标全对不上，看起来就是「标题错位」。文件名也没有换行显示的必要。
+                        maxLines = 1,
+                        overflow = TextOverflow.Ellipsis,
                     )
                 },
                 actions = {
