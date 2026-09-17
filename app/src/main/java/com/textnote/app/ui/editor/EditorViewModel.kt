@@ -49,6 +49,8 @@ class EditorViewModel(
 ) : ViewModel() {
 
     /** 文本与选区 */
+    // ---------- 状态：文档身份与正文 ----------
+
     var field by mutableStateOf(TextFieldValue(""))
         private set
 
@@ -83,6 +85,8 @@ class EditorViewModel(
 
     var writable by mutableStateOf(true)
         private set
+
+    // ---------- 状态：加载 / 不可用 / 只读 / 过大 ----------
 
     var loading by mutableStateOf(false)
         private set
@@ -146,6 +150,8 @@ class EditorViewModel(
      * 上次编辑留下了未保存的草稿，且内容与文件当前内容不同。
      * 非 null 时界面要问用户恢复还是丢弃——自动套用等于替用户决定，猜错了就是数据丢失。
      */
+    // ---------- 状态：草稿 / 语法 / 撤销按钮 / 外部改动 ----------
+
     var pendingDraft by mutableStateOf<Draft?>(null)
         private set
 
@@ -238,6 +244,10 @@ class EditorViewModel(
     /**
      * 打开/保存时刻的文件状态，作为「有没有被外部改过」的基准。
      *
+     * **只有只读的大文件会在检测时读它**（见 [checkExternalChange]）：那条路上不能为了确认而
+     * 重读 4MB，只能拿元数据比。可编辑的文档一律用正文基准 [baselineText]——元数据本身
+     * 不可信（会滞后、会报旧值），不足以充当判据。
+     *
      * null 表示这个 provider 报不出体积与时间，检测做不了。此时**不提示**——
      * 检测不到不等于没变化，编一个「一切正常」出来比不检测更糟。
      */
@@ -256,6 +266,8 @@ class EditorViewModel(
      * 行索引。用 derivedStateOf 缓存：文本每变一次只重算一次，而不是每个读取它的
      * 组合各算一遍。
      */
+    // ---------- 派生状态（正文一变就重算）与查找面板 ----------
+
     val lineIndex: LineIndex by derivedStateOf { LineIndex.of(field.text) }
 
     /**
@@ -300,6 +312,8 @@ class EditorViewModel(
      */
     var scrollToOffset by mutableStateOf<Int?>(null)
         private set
+
+    // ---------- 行为：编辑、撤销、开关文档 ----------
 
     fun onFieldChange(value: TextFieldValue) {
         if (readOnly) return // 只读模式下不该有编辑回调，这是道防线而不是正常路径
@@ -407,6 +421,14 @@ class EditorViewModel(
         search.close()
         // 没有当前文档就无从谈起写权限。留成 true 会让「保存」在空状态上亮着。
         writable = false
+        // 文档元信息也一起丢掉：空状态下它们没有任何意义，留着只会在「哪天有空状态也显示编码的
+        // 界面」时冒出一个属于上一份文件的值。
+        //
+        // [fileName] **故意不清**：打开失败时标题栏上的是那个**被拒绝的文件**的名字，
+        // 用户更需要知道「是哪个文件打不开」而不是看到一个空白标题。
+        encoding = DocumentEncoding.UTF8
+        lineEnding = LineEnding.LF
+        mixedEndings = false
         undoStack.clear()
         refreshUndoState()
         manualSyntax = null
@@ -441,6 +463,8 @@ class EditorViewModel(
     }
 
     /** 打开文档：探测编码与行尾、归一化行尾、登记最近列表、检查有无可恢复草稿 */
+    // ---------- 行为：打开 / 保存 / 外部改动检测 ----------
+
     fun open(uri: Uri, dropDraft: Boolean = false) {
         // 这次打开的代号。往后每个挂起点之后都要问一句「我还是当前那次吗」——见 [documentToken]
         val token = ++documentToken
@@ -461,6 +485,13 @@ class EditorViewModel(
             val name = withContext(Dispatchers.IO) { repository.displayName(uri) }
             if (stale(token)) return@launch
             fileName = name
+
+            // ⚠️ 这个校验必须紧跟在挂起点之后。下面两个失败分支除写 [unavailable]/[tooLarge] 之外
+            // 还会 [clearCurrentDocument]，若放任它们落在**两次打开交错**的时候，就会盖到新文档
+            // 头上：新文档的成功路径不复位这两个字段（它们只在 `open()` 开头复位，那时这次调用
+            // 还没返回），于是界面显示「标题是新文件、正文却是『打不开 / 文件过大』」，状态栏与
+            // 保存一起消失。这正是 [documentToken] 那套代号要挡的交错。
+            if (stale(token)) return@launch
 
             // 体积上限的判断在仓库里做（只有那里知道到底读了几个字节），这里只按结果分流。
             // 三种结果要给用户三种完全不同的交代，所以用 when 而不是叠 if。
@@ -562,17 +593,17 @@ class EditorViewModel(
         val content = field.text
         val ok = repository.saveDocument(uri, content, encoding, lineEnding)
         if (!ok) return false
-        // 保存会改 mtime——必须刷新基准，否则下次回前台会把自己刚才这次写入
-        // 当成「别的应用改了文件」，然后问用户要不要重新加载。
-        val fresh = withContext(Dispatchers.IO) { repository.fileState(uri) }
         // 挂起期间用户可能换了文档：那这一份的基准归 open() 写，这里再写就是覆盖别人的状态。
         if (stale(token)) return true
         // 基准记的是**真正写下去的那一份**（content），不是此刻的正文：保存期间新敲的内容
         // 必须仍然算未保存，否则它会被静默丢掉。
+        //
+        // **防「自写自报」靠的就是这一行**：下次回前台拿磁盘比内容，两边都是 content，于是不提示。
+        // 这里刻意**不再**顺手刷新 [baseline]——它只服务只读那条路（见其 KDoc），
+        // 可编辑文档没有人读它，刷新它就是白问一次 provider。
         baselineText = content
         // 已经覆盖写回，磁盘与内存的分歧就此结束，那句提示没有理由还挂着
         externalChange = null
-        baseline = fresh
         // 撤销栈**不清**——刚保存过不等于想放弃历史，用户完全可以接着撤销回更早的状态
         // （那时 dirty 会重新亮起来）。
         withContext(Dispatchers.IO) { drafts.delete(uri.toString()) }
@@ -582,9 +613,10 @@ class EditorViewModel(
     /**
      * 另存为：把当前内容写到另一个位置，并把「当前文档」**整体迁到那里**。
      *
-     * 迁的不只是 [currentUri]。基准、文件名、写权限、草稿归属、语法覆盖全都要跟着走，
-     * 少一处就会出鬼：漏了 [baseline]，下次回到前台会把自己刚写的文件报成「被别的应用改过」；
-     * 漏了 [baselineText]，界面会顶着一个假的未保存标记，而用户刚刚才存过。
+     * 迁的不只是 [currentUri]。文件名、写权限、草稿归属、语法覆盖全都要跟着走，
+     * 少一处就会出鬼：漏了 [baselineText]，界面会顶着一个假的未保存标记，而用户刚刚才存过。
+     * [baseline] 这里**不迁**（置空）：它只服务只读文档的元数据比对，而另存为对只读是关着的
+     * ——可编辑文档每次都拿内容比，留着上一个文件的元数据只会误导后来人。
      *
      * 编码与行尾**沿用当前文档**的：这个动作是「换个地方放同一份东西」，不是新建文档。
      * 换位置本身不改变内容一丝一毫，这一点和 [save] 的底线是同一条。
@@ -599,20 +631,19 @@ class EditorViewModel(
         val ok = repository.saveDocument(uri, content, encoding, lineEnding)
         if (!ok) return false
 
-        val state = withContext(Dispatchers.IO) {
+        withContext(Dispatchers.IO) {
             repository.persistPermission(uri)
-            val s = repository.fileState(uri)
             repository.addToRecents(uri)
             // 旧位置的草稿没有存在理由了：那份内容已经落到新文件上，旧文件本身没被改过。
             // 留着它，下次打开旧文件会弹一次「发现草稿」，而弹的正是用户以为已经处理掉的内容。
             previous?.takeIf { it != uri }?.let { drafts.delete(it.toString()) }
-            s
         }
         // 挂起期间换了文档：文件确实已经写出去了（那是用户按下的动作），但「当前文档」不能再
         // 迁到这个新位置——要迁的是当时那一份的状态，而它已经不是当前这一份了。
         if (stale(token)) return true
         currentUri = uri
-        baseline = state
+        // 见 KDoc：只读才用 [baseline]，而这里不可能只读，所以置空而不是迁过来
+        baseline = null
         baselineText = content
         writable = true // 刚写成功，写权限一定有；再问一次 provider 只会引入一个可能出错的点
         externalChange = null
@@ -638,19 +669,36 @@ class EditorViewModel(
      *
      * 分两条路，因为两条路上可信的信号不一样：
      * - **只读的大文件**只比体积与修改时间，**不重读内容**。4MB 的读取 + 解码要一秒以上，
-     *   切回前台时卡这么一下不值得；只有元数据明确说变了才提示。
-     * - **可编辑的文件**把内容**读回来比**。元数据在这条路上不可靠——实测没有读媒体权限时
+     *   切回前台时卡这么一下不值得；只有元数据明确说变了才提示，而且这时才用得上
+     *   「元数据没变就跳过」的快速路径（见下）。
+     * - **可编辑的文件**每次都把内容**读回来比**。元数据在这条路上不可靠——实测没有读媒体权限时
      *   MediaStore 的 query 返回空 cursor，于是「拿不到」会被误当成「没变」；而这个体积的
      *   文件重读一遍只要几十毫秒，用内容判据更准也更省心。
      *
-     * 两条路在「确认没变」之后都会刷新基准，所以之后再回前台走的是元数据快速路径。
+     * ## 可编辑这条路上**没有**快速路径，这是刻意的
+     *
+     * 「元数据没变」这件事本身不可信：实测 MediaStore 的 `_size` / `date_modified` 会**滞后**
+     * 好几秒，甚至报着上一轮的旧值（`content write` 写完，provider 那边还是老数字）。拿一个
+     * 不可信的信号去否决可信的内容比对，等于给外部改动检测装了一道会误关的闸——实测漏报就是
+     * 这么来的：应用手里是 34 字符的正文，provider 报的 size 却是上一轮 37，两边「相等」，
+     * 于是跳过检测、外面那份 37 字节的新内容再没被提起。代价只有几十毫秒（可编辑上限 20 万字符），
+     * 比一次输入的排版开销还小。
+     *
+     * 只读那条路保留快速路径，是因为那里重读一遍的代价是**秒级**，只能退而求其次。
+     *
+     * ## 判据的基准是「上次同步的那一份」，不是「此刻的缓冲」
+     *
+     * 只读那条路比的是 [baseline]，可编辑那条路比的是 [baselineText]——两次都是拿**基准**
+     * 去对，而不是拿 [field]。有未保存改动时缓冲本来就与磁盘不同，拿它去比等于把「用户自己
+     * 还没存」报成「别人改了文件」，而那条横幅上的按钮叫「重新加载」（点下去连草稿一起丢）。
+     *
+     * 同理，**「问不出来」不下任何结论**：provider 报不出体积与时间（[DocumentRepository.fileState]
+     * 返回 null）时既不能说「变了」也不能说「没了」。判据必须落在「明确给出的信号」上。
      */
     fun checkExternalChange() {
         val uri = currentUri ?: return
         if (loading || unavailable || tooLarge != null) return
         val base = baseline
-        // 内存里的版本（已归一化成 LF），与磁盘读回来的直接比字符串
-        val inMemory = field.text
         // 这次检测针对的是哪一份文档。检测要跨进程问 provider、可编辑时还要重读全文，中间
         // 用户完全可能换了文件——那就既不该报「被改过」，更不该把别的文件的基准写进 [baseline]。
         val token = documentToken
@@ -658,20 +706,23 @@ class EditorViewModel(
             val state = withContext(Dispatchers.IO) { repository.fileState(uri) }
             if (stale(token)) return@launch
 
-            // 快速路径：元数据说完全没变，就不必把文件读一遍
-            if (base != null && state == base) return@launch
-
             if (readOnly) {
+                // 快速路径只留在这里：元数据说完全没变就不必把 4MB 重读一遍。
+                if (base != null && state == base) return@launch
                 // 大文件不为了「确认一下」而重读一遍：4MB 的读取 + 解码要一秒以上，
-                // 切回前台时卡这么一下不值得。这里只信元数据明确给出的变化。
+                // 切回前台时卡这么一下不值得。这里只信元数据**明确给出**的变化。
                 when {
-                    state == null -> externalChange = ExternalChange.Gone
+                    // 开文档时也问不出来（base == null）说明这个 provider 本来就不报这些列，
+                    // 那什么都不能推断，宁可什么都不说；**先前问得出来、现在连元数据都查不到**
+                    // 才算「打不开了」的证据——与可编辑那条路把 Unavailable 判成 Gone 同一口径。
+                    state == null -> if (base != null) externalChange = ExternalChange.Gone
                     base != null && differs(base, state) -> externalChange = ExternalChange.Modified
                 }
                 return@launch
             }
 
-            // 可编辑的文件：**把内容读回来比**。
+            // 可编辑的文件：**每次都把内容读回来，和上次同步的那一份比**（不走元数据快速路径，
+            // 理由见 KDoc）。
             // 元数据在这条路径上不可靠——实测应用没有读媒体权限时，MediaStore 的 query
             // 返回空 cursor（不报错），于是「拿不到」会被误当成「没变」。内容才是可信信号；
             // 这个文件本来就在可编辑范围内，重读一遍只要几十毫秒。
@@ -682,14 +733,13 @@ class EditorViewModel(
                 is OpenResult.Unavailable -> externalChange = ExternalChange.Gone
                 is OpenResult.TooLarge -> Unit // 变成超大文件了，先不动，等下次打开再说
                 is OpenResult.Loaded -> {
-                    if (result.document.text != inMemory) {
-                        externalChange = ExternalChange.Modified
-                    } else {
-                        // 内容一致：刷新基准，免得每次回前台都白读一遍
-                        val fresh = withContext(Dispatchers.IO) { repository.fileState(uri) }
-                        if (stale(token)) return@launch
-                        baseline = fresh
-                    }
+                    // baselineText 在这里读（挂起之后）而不是开头：期间用户可能刚好保存过，
+                    // 那就该拿最新的那一份当基准，否则会把这次保存自己报成外部改动。
+                    //
+                    // 内容一致时**什么都不做**：这里刻意不顺手刷新 [baseline]，那个基准只服务
+                    // 只读那条路（见 KDoc 与 [baseline] 的说明），可编辑这条路每次都用内容判据，
+                    // 刷新它既没人读、又白问一次 provider。
+                    if (result.document.text != baselineText) externalChange = ExternalChange.Modified
                 }
             }
         }
@@ -718,20 +768,46 @@ class EditorViewModel(
     /**
      * 保留内存里的版本（只读浏览时是「忽略」）。
      *
-     * 关键是顺手把基准更新成磁盘**当前**的状态：用户已经知道并做过选择了，
-     * 不该每次切回前台都再问一遍。
+     * 要让「同一个分歧不再问第二遍」，就得把基准挪到用户**刚刚认可过的那一份**上——
+     * 两条路各自的「那一份」不一样：
+     * - 只读比的是元数据，所以刷新 [baseline]；
+     * - 可编辑比的是正文，所以把 [baselineText] 挪到**磁盘当前那一份**。这不是「假装我的内容
+     *   已经存好了」：挪完之后 [dirty] 会正确地变成 true（用户的内容确实还没进磁盘，标题上那个
+     *   `•` 正是要说这件事），而且下次真的保存时磁盘才会被覆盖。
+     *
+     * 反过来说，**只更新元数据基准对可编辑文档没用**——那条路每次都拿内容比，元数据根本不参与
+     * 判断，于是同一个分歧会被反复提示（B6 刚把快速路径从这条路上抽掉时就是这样，靠上机第 2 步
+     * 抓出来的）。
+     *
+     * 例外是**文件已经不存在**：那时什么都挪不了，于是每次回前台还会再提示一次。这是对的
+     * ——那份文件确实写不回去了，反复告知比装作没事更安全。
      */
     fun keepLocalVersion() {
         val uri = currentUri ?: return
         externalChange = null
+        // 下面这些读写都要过代号：期间换了文档的话，基准已经是新文档的，写下去就是把
+        // 上一份文件的版本按到新文档头上（下次回前台会据此误报或漏报外部改动）。
+        val token = documentToken
+        val stillReadOnly = readOnly
         viewModelScope.launch {
-            baseline = withContext(Dispatchers.IO) { repository.fileState(uri) }
+            if (stillReadOnly) {
+                val state = withContext(Dispatchers.IO) { repository.fileState(uri) }
+                if (stale(token)) return@launch
+                baseline = state
+                return@launch
+            }
+            val disk = withContext(Dispatchers.IO) { repository.openDocument(uri) }
+            if (stale(token)) return@launch
+            // 读不到（被删/被移走）就什么都不动：下一次检测会以 Gone 提示，那比假装认可了安全。
+            (disk as? OpenResult.Loaded)?.let { baselineText = it.document.text }
         }
     }
 
     // ---------- 查找与替换 ----------
 
     /** 打开查找面板。有选区时拿选区内容当初始关键词（只读模式没有光标，从空开始） */
+    // ---------- 行为：查找与替换 ----------
+
     fun openSearch() {
         syncSearchText() // 面板一打开就要立刻搜，不能等到延迟结束
         val selection = field.selection
@@ -856,6 +932,8 @@ class EditorViewModel(
     }
 
     /** 采用草稿：覆盖当前正文，并把草稿里记的编码与行尾一并取回 */
+    // ---------- 行为：草稿生命周期 ----------
+
     fun restoreDraft() {
         val draft = pendingDraft ?: return
         // 整体替换，独立成一步撤销：与手打输入合并的话，撤销一次会连带上一段输入

@@ -161,6 +161,15 @@ public class CheckSearch {
         check("末尾单个 $ 原样保留", SearchEngine.INSTANCE.expandReplacement("a$", g).equals("a$"));
         check("$x 不是组引用，原样保留", SearchEngine.INSTANCE.expandReplacement("$x", g).equals("$x"));
         check("未闭合的 ${ -> 原样保留 $", SearchEngine.INSTANCE.expandReplacement("${1", g).equals("${1"));
+        check("非数字组名 ${name} 原样保留（不能静默删掉用户内容）",
+                SearchEngine.INSTANCE.expandReplacement("a${name}b", g).equals("a${name}b"));
+        check("空花括号 ${} 原样保留", SearchEngine.INSTANCE.expandReplacement("${}", g).equals("${}"));
+        check("花括号里不是纯数字 ${1x} 原样保留",
+                SearchEngine.INSTANCE.expandReplacement("${1x}", g).equals("${1x}"));
+        check("${ 1 } 里的空白被容忍，仍取第 1 组",
+                SearchEngine.INSTANCE.expandReplacement("${ 1 }", g).equals("[1]"));
+        check("与 $x 同一口径：$name 也原样保留",
+                SearchEngine.INSTANCE.expandReplacement("$name", g).equals("$name"));
         check("混合文本", SearchEngine.INSTANCE.expandReplacement("v=$1/$$", g).equals("v=[1]/$"));
         check("不含 $ 的模板原样返回", SearchEngine.INSTANCE.expandReplacement("hello", g).equals("hello"));
         check("反斜杠不当转义（\\n 保持字面）",

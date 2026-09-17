@@ -11,7 +11,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _fixtures import fixture
+from _fixtures import ensure_awake, fixture
 
 ADB = os.path.expanduser("~/Library/Android/sdk/platform-tools/adb")
 PKG = "com.textnote.app"
@@ -42,7 +42,11 @@ def ui():
 
     带重试：这台机器上 uiautomator dump 会偶发失败（尤其界面刚组合完时），
     一次失败就下结论会得到假阴性——本脚本最初因此误报过 3 处。
+
+    屏幕休眠时 dump 只会返回 `null root node`（exit code 仍是 0），读出来全是空，
+    所以先唤醒一次。
     """
+    ensure_awake()
     for _ in range(3):
         sh("rm -f /sdcard/ui.xml")
         r = subprocess.run([ADB, "shell", "uiautomator", "dump", "/sdcard/ui.xml"],

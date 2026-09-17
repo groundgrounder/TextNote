@@ -69,7 +69,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _fixtures import fixture
+from _fixtures import ensure_awake, fixture
 
 ADB = os.path.expanduser("~/Library/Android/sdk/platform-tools/adb")
 PKG = "com.textnote.app"
@@ -162,6 +162,9 @@ def measure(mode, rounds=10):
 
 
 def main():
+    # 只在启动时唤醒一次：ui_text() 在计时循环里被反复调用，往那里插 dumpsys/按键事件
+    # 会污染测量（而且休眠时 dump 只会返回 null root node，测出来全是假值）。
+    ensure_awake()
     labels = [sys.argv[1]] if len(sys.argv) > 1 and sys.argv[1] in CASES else list(CASES)
     modes = [sys.argv[2]] if len(sys.argv) > 2 and sys.argv[2] in ALL_MODES else ALL_MODES
 

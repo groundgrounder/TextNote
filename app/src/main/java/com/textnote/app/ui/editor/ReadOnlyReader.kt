@@ -34,6 +34,7 @@ import com.textnote.app.core.LineIndex
 import com.textnote.app.core.SearchEngine
 import com.textnote.app.core.SearchMatch
 import com.textnote.app.core.Syntax
+import com.textnote.app.ui.theme.HighlightStyles
 import com.textnote.app.ui.theme.LocalEditorTextStyle
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext

@@ -8,7 +8,7 @@
 """
 import os, re, subprocess, sys, time
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _fixtures import fixture
+from _fixtures import ensure_awake, fixture
 
 ADB = os.path.expanduser("~/Library/Android/sdk/platform-tools/adb")
 PKG = "com.textnote.app"
@@ -25,6 +25,7 @@ def ui():
 
 def run(uid, label):
     sh(f"am force-stop {PKG}"); time.sleep(1.5)
+    ensure_awake()   # 计时开始**之前**唤醒（别插进计时循环）
     t0=time.time()
     sh(f'am start -a android.intent.action.VIEW -d "content://media/external/file/{uid}" '
        f'-t text/plain --es mode linesnowrap --grant-read-uri-permission -n {ACT}')

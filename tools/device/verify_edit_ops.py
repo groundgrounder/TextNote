@@ -34,9 +34,14 @@ import time
 
 # 直接运行脚本时 Python 已经把脚本目录放进 sys.path[0]，被别处 import 时则没有
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _fixtures import ADB  # noqa: E402
+from _fixtures import ADB, ensure_awake  # noqa: E402
+from _input_probe import SKIP_REASON, input_injection_probe  # noqa: E402
 
 PKG = "com.textnote.app"
+
+# 本机的注入键能不能用？不能用时「输入后 +3」「两段都进去了」这类断言标 skip 而不是记失败
+# ——否则看起来像产品 bug，其实一个字都没敲进去（判据见 _input_probe）。
+INJECT_OK = input_injection_probe()
 
 pass_count = 0
 fails = []
@@ -51,7 +56,11 @@ def ui():
 
     `uiautomator dump` 会偶发失败，而且失败时会**留下上一次的 /sdcard/ui.xml**——
     pull 回来的是旧界面，据此断言会得到假阴性。所以每次先 rm，再重试。
+
+    另外**屏幕休眠时 dump 一定返回 null root node**（exit code 还是 0），读出来全是空——
+    先 `ensure_awake()` 一下，否则会把它当成「界面里没这个控件」。
     """
+    ensure_awake()
     for _ in range(3):
         sh(f"{ADB} shell rm -f /sdcard/ui.xml")
         if "dumped" in sh(f"{ADB} shell uiautomator dump /sdcard/ui.xml"):
@@ -108,6 +117,17 @@ def tap_desc(*names, timeout=10):
     return False
 
 
+def has_desc(*names, timeout=8):
+    """只判断某个 content-desc 在不在，**不点它**（用来确认某个界面确实开了）"""
+    end = time.time() + timeout
+    while time.time() < end:
+        for d in nodes(ui()):
+            if d.get("content-desc") in names:
+                return True
+        time.sleep(0.4)
+    return False
+
+
 def wait_text(frag, timeout=12):
     end = time.time() + timeout
     while time.time() < end:
@@ -134,6 +154,21 @@ def check(name, got, want):
     else:
         fails.append(name)
     print(f"  {'OK  ' if ok else 'FAIL'} {name}: 实际={got} 期望={want}")
+
+
+def check_input(name, got, want):
+    """依赖注入键的断言。
+
+    **过了就记通过**；只有「没过 + 探针确认本机注入通道坏掉」才标 skip——方向不能反，
+    否则会把真正的回归也一起放过（判据见 _input_probe）。
+    """
+    if got == want:
+        check(name, got, want)
+    elif INJECT_OK is False:
+        print(f"  skip {name}: 实际={got} 期望={want}")
+        print(f"       {SKIP_REASON}")
+    else:
+        check(name, got, want)
 
 
 def ensure_file(name, content, keep=False):
@@ -202,7 +237,7 @@ def case_undo():
     time.sleep(2.0)
     sh(f'{ADB} shell "input text \'ABC\'"')
     time.sleep(2.0)
-    check("输入后 +3", chars(), base + 3)
+    check_input("输入后 +3", chars(), base + 3)
 
     print("\n[3] 撤销一次（连续输入应合并成一步）")
     tap_desc("撤销", "Undo")
@@ -210,7 +245,7 @@ def case_undo():
 
     print("\n[4] 重做")
     tap_desc("重做", "Redo")
-    check("重做恢复输入", chars(), base + 3)
+    check_input("重做恢复输入", chars(), base + 3)
 
     print("\n[5] 撤销到底后再点（应无变化 = 按钮已禁用）")
     tap_desc("撤销", "Undo")
@@ -225,9 +260,9 @@ def case_undo():
     time.sleep(2.0)
     sh(f'{ADB} shell "input text \'PQ\'"')
     time.sleep(2.0)
-    check("两段都进去了", chars(), base + 5)
+    check_input("两段都进去了", chars(), base + 5)
     tap_desc("撤销", "Undo")
-    check("第一次撤销只退掉 PQ", chars(), base + 3)
+    check_input("第一次撤销只退掉 PQ", chars(), base + 3)
     tap_desc("撤销", "Undo")
     check("第二次撤销退掉 XYZ", chars(), base)
 
@@ -248,19 +283,34 @@ def case_replace():
         fails.append("找不到查找按钮")
         return
     time.sleep(1.0)
-    if not tap_text("查找", timeout=6) and not tap_text("Find", timeout=4):
-        fails.append("找不到查找输入框")
+    # ⚠️ 不要按占位文字找查询框：它是自绘的 `BasicTextField`，**在语义树里没有节点**
+    # （占位文字也不暴露）——按文字定位必然「找不到查找输入框」。面板一打开它就自动聚焦
+    # （`SearchPanel` 里的 `focusRequester`），所以直接 `input text` 即可；这里只确认面板确实开了。
+    if not has_desc("上一处", "Previous match"):
+        fails.append("查找面板没打开")
         return
     sh(f'{ADB} shell "input text \'cat\'"')
     time.sleep(1.5)
-    check("命中 2 处", wait_text("2 处") or wait_text("2 found"), True)
+    check_input("命中 2 处", wait_text("2 处") or wait_text("2 found"), True)
 
     print("\n[2] 跳到下一处，填入替换文本 catalog")
     tap_desc("下一处", "Next match")
     time.sleep(1.0)
-    if not tap_text("替换为", timeout=6) and not tap_text("Replace", timeout=4):
-        fails.append("找不到替换输入框")
+    # 替换输入框同样没有语义节点，所以按位置点：它在「替换」按钮左边那一大片（同一行）。
+    # 用按钮的 bounds 反推，别写死坐标——面板高度随字号/语言会变。
+    repl_btn = None
+    for d in nodes(ui()):
+        if d.get("text") in ("替换", "Replace"):
+            repl_btn = d
+            break
+    if repl_btn is None:
+        fails.append("找不到替换按钮（定位替换输入框要用它反推）")
         return
+    a, _ = repl_btn["bounds"].split("][")
+    bx, by = a.strip("[").split(",")
+    xe, ye = repl_btn["bounds"].split("][")[1].strip("]").split(",")
+    tap_xy((max(40, int(bx) - 250), (int(by) + int(ye)) // 2))
+    time.sleep(1.0)
     sh(f'{ADB} shell "input text \'catalog\'"')
     time.sleep(1.2)
 
@@ -269,10 +319,10 @@ def case_replace():
         fails.append("找不到替换按钮")
         return
     time.sleep(1.5)
-    check("第一次替换 +4 字符", chars(), base + 4)
+    check_input("第一次替换 +4 字符", chars(), base + 4)
     tap_text("替换") or tap_text("Replace")
     time.sleep(1.5)
-    check("第二次替换再 +4（而不是原地打转）", chars(), base + 8)
+    check_input("第二次替换再 +4（而不是原地打转）", chars(), base + 8)
 
 
 def main():

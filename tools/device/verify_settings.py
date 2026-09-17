@@ -17,7 +17,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _fixtures import fixture
+from _fixtures import ensure_awake, fixture
 
 ADB = os.path.expanduser("~/Library/Android/sdk/platform-tools/adb")
 PKG = "com.textnote.app"
@@ -43,6 +43,7 @@ def sh(c, t=120):
 
 
 def ui():
+    ensure_awake()   # 屏幕休眠时 dump 只会返回 null root node（exit code 仍是 0）
     for _ in range(3):
         sh("rm -f /sdcard/ui.xml")
         r = subprocess.run([ADB, "shell", "uiautomator", "dump", "/sdcard/ui.xml"],
@@ -108,6 +109,41 @@ def tap_desc(desc):
         tap_node(d)
         return True
     return False
+
+
+def sliders():
+    """设置页里的滑块（Compose 的 `Slider` 映射成 `SeekBar`），按 y 从上到下排。"""
+    out = []
+    for d in nodes():
+        if d.get('class') == 'android.widget.SeekBar':
+            a = d['bounds'].split('][')[0].strip('[')
+            out.append((int(a.split(',')[1]), d))
+    return [d for _, d in sorted(out)]
+
+
+def set_slider_to_max(idx=0):
+    """把第 [idx] 个滑块拖到最右端（= 该档位集合里的最大值）。
+
+    **为什么不是点文字**：字号 / 行距现在是 `SteppedSlider`（一个 Slider + 当前值标签），
+    屏幕上**没有**「22」「1.8」这类可点文字——按文字点必然落空。
+    2026-09-16 就是因为这个，字号/行距两步共 5 条断言假失败（脚本与产品脱节）。
+
+    **起手点不能贴左边缘**：从 x≈20 起手的横向 swipe 会被系统的「边缘返回手势」吃掉，
+    结果是**页面直接退出去**（而不是拖动滑块）。实测症状：拖完 SeekBar 从 dump 里消失、
+    偏好文件里也没写入。所以起手放在轨道 1/4 处、落点离右边缘留 30px。
+    用 swipe 而不是 tap：拖拽一定会改值，不依赖「点轨道是否跳档」这个实现细节。
+    """
+    ss = sliders()
+    if idx >= len(ss):
+        return False
+    a, b = ss[idx]['bounds'].split('][')
+    xs = int(a.strip('[').split(',')[0])
+    xe = int(b.strip(']').split(',')[0])
+    y = (int(a.strip('[').split(',')[1]) + int(b.strip(']').split(',')[1])) // 2
+    x_start = xs + 250          # 避开左边缘的返回手势区
+    x_end = xe - 30             # 离右边缘留一截，同样避开手势区
+    sh("input swipe %d %d %d %d 300" % (x_start, y, x_end, y))
+    return True
 
 
 def open_settings():
@@ -195,7 +231,8 @@ check("有预览区（渲染了示例行号）", any('1\n2\n3' == x for x in t) 
 shot("m7-settings-default.png")
 
 print("=== 2. 字号：15 → 22 ===")
-check("点到了 22 这个选项", tap_text('22'))
+# 滑块拖到最右端 = 最大档 22（屏幕上没有「22」这种可点文字，见 set_slider_to_max）
+check("把字号滑块拖到最大档（22）", set_slider_to_max(0))
 time.sleep(1.5)
 back()
 wait_text('UTF-8')
@@ -210,7 +247,7 @@ shot("m7-font-size-22.png")
 print("=== 3. 行距：再放大一档 ===")
 open_settings()
 wait_text('字号')
-check("点到了 1.8 这个行距", tap_text('1.8'))
+check("把行距滑块拖到最大档（1.8）", set_slider_to_max(1))
 time.sleep(1.5)
 back()
 wait_text('UTF-8')

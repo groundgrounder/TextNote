@@ -74,7 +74,8 @@ import threading
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _fixtures import ADB  # noqa: E402
+from _fixtures import ADB, ensure_awake  # noqa: E402
+from _input_probe import input_injection_probe  # noqa: E402
 
 PKG = "com.textnote.app"
 PICKER = "com.google.android.documentsui"
@@ -87,6 +88,9 @@ INTERFERING_APPS = ["com.marknote.app"]
 
 pass_count = 0
 fails = []
+
+# 本机注入键能不能用（判据见 _input_probe）：C 用例是唯一依赖打字的，失效时标 skip
+INJECT_OK = input_injection_probe()
 
 
 # ---------- 设备与界面 ----------
@@ -101,7 +105,10 @@ def ui():
     每次先 rm（避免上一轮残留的 ui.xml 被当成这一轮的界面），**判断依据是拿回来的文件内容
     而不是 dump 命令的 stdout 措辞**：dump 偶发失败时既没有 `dumped` 字样、也没有新文件，
     按 stdout 判断会把「工具偶发失败」和「界面里确实没有这个控件」混成同一种结果。
+
+    屏幕休眠时要先唤醒：那时 dump 只会返回 null root node，看起来像「界面里没这个控件」。
     """
+    ensure_awake()
     for _ in range(5):
         sh("{ADB} shell rm -f /sdcard/ui.xml".format(ADB=ADB))
         sh("{ADB} shell uiautomator dump /sdcard/ui.xml".format(ADB=ADB))
@@ -613,6 +620,11 @@ def case_b(media_id, created):
 
 def case_c():
     print("\n=== C. 输入 → 未保存标记 → 保存（唯一依赖输入法的一步，失败重试三轮）===")
+    if INJECT_OK is False:
+        # 本机注入键对任何应用都无效（系统设置的对照框也进不去）：这一步测不了，
+        # 标 skip 而不是让三轮重试白跑一分钟再报一个像产品 bug 的失败。
+        print("  skip：本机 `input text` 对任何应用都无效（判据见 _input_probe）")
+        return
     # 输入法窗口会让 uiautomator 的 dump 偶发取不到界面，而「抢前台」也多半发生在这段时间，
     # 所以这一步重试；其余用例都不打字。
     body = "alpha beta gamma"

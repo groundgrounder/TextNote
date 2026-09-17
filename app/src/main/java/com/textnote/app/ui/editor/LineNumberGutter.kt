@@ -29,6 +29,12 @@ import com.textnote.app.core.LineIndex
 import kotlin.math.max
 import kotlin.math.roundToInt
 
+/**
+ * 行号栏：贴在编辑区左侧，自己按 [ScrollState] 反向位移跟随滚动。
+ *
+ * 两条硬约束（推导见下面的 KDoc）：**行号 y 只能问 `TextLayoutResult`**，不能按
+ * 「行号 × 行高」算（软换行会立刻错位）；性能靠「滚动位移走图层 + 只在跨屏时重算可视区」。
+ */
 private val GUTTER_START_PAD = 10.dp
 private val GUTTER_END_PAD = 6.dp
 private const val MIN_DIGITS = 2

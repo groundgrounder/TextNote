@@ -4,8 +4,8 @@
 
 ## `checks/` —— core 层的纯逻辑断言
 
-**372 条断言**，测的是 `core/` 里不依赖 Android 运行时的部分：编码探测、行索引、行尾
-往返、词法着色、搜索边界、撤销栈、体积上限的不变量。不需要模拟器，秒级完成。
+**385 条断言**，测的是 `core/` 里不依赖 Android 运行时的部分：编码探测、行索引、行尾
+往返、词法着色、搜索边界、撤销栈、体积上限的不变量、体积文案。不需要模拟器，秒级完成。
 
 （条数以 `tools/run_checks.sh` 的汇总行为准，改完断言顺手把这里也改一下。）
 
@@ -31,6 +31,7 @@ tools/run_checks.sh          # 直接跑，不用先构建
 | `CheckUndo.java` | `UndoStack`：单段差分的**前后缀不重叠**、连续输入/退格合并、跨类型与超时不合并、redo 分支作废、双重上限淘汰、**差分数与正文对不上时清栈而不是硬改** |
 | `CheckSyntaxRegistry.java` | 15 种语法的扩展名归属与优先级（`jsx`/`tsx` 归 JS 而非 HTML）、按 id 取语法、认不出的扩展名退回纯文本 |
 | `CheckLimits.java` | `EditorLimits` 三档上限**单调有序**、`READ_BYTES >= OPEN_CHARS × 4` 等不变量 |
+| `CheckByteSize.java` | `formatBytes`：三个量级的切换点（1MB 差一字节的两侧）、只保留一位小数、小数点是点号（`Locale.US` 刻意固定）。**用户可见的「4.0 MB」「8.0 MB」就是它拼出来的**，设备脚本 `verify_open_tiers.py` 断言的那串也是它——原先它 `private` 在一个 Compose 文件里，只能等设备跑一遍才发现写错 |
 | `CheckEncoding.java` | `TextEncoding` 的 BOM 优先、UTF-8→GB18030 探测顺序，以及 **`decode`（打开正文）与 `decodeTruncated`（列表摘要）对同一个文件必须认成同一种编码**；另含**全链路字节级往返**：LF/CRLF/CR × ASCII/GBK/UTF-8-BOM/UTF-16LE-BOM（比 `CheckLineIndex` 里那组多走一次 encode） |
 
 为什么要绕一圈、不放进 `app/src/test`：那个源集要引入 JUnit，而引入就得联网拉依赖；
@@ -39,6 +40,29 @@ tools/run_checks.sh          # 直接跑，不用先构建
 
 新增断言：在 `checks/` 里加一个 `CheckXxx.java`，照着现有文件的样子写
 （`main` 里累加 pass/fail，失败时 `System.exit(1)`），脚本会自动带上它。
+
+## `check_locales.py` —— 多语言资源的一致性
+
+**改任何一套 `strings.xml` 或 `locales_config.xml` 之后跑它**，秒级完成、不需要模拟器：
+
+```bash
+python3 tools/check_locales.py
+```
+
+守三件靠人记必然记漏的事：
+
+| 检查 | 漏了会怎样 |
+|---|---|
+| 各 `values*/strings.xml` 的键集合一致 | 该语言静默回落成英文，界面上变成「一页里夹着两句英文」，review 时看不出来 |
+| 同一个键里的格式占位符一致 | `MissingFormatArgumentException` 直接崩，或参数串位（把行数显示成字符数） |
+| `locales_config.xml` 与 `values-*` 目录一一对应 | 声明了却没资源 = 系统「应用语言」里出现选了没反应的假选项；有资源却没声明 = 用户根本选不到这套译文 |
+
+目录名与 locale 标签的换算是 `zh-Hans` ↔ `values-b+zh+Hans`（BCP-47 的 `-` 在目录名里写成 `+`），
+`en` 落在兜底的 `values/`。
+
+它还带一个开关：`python3 tools/check_locales.py <资源目录>`，可以指向一份**故意做坏的副本**，
+用来确认它真的会报警 —— 一个从不报警的检查脚本比没有检查更糟。CI 里也接了这条
+（见 `.github/workflows/android.yml`）。
 
 ## `device/` —— 上机测量与验证脚本
 
@@ -89,7 +113,27 @@ media id 每台设备都不一样，所以**不要在脚本里硬编码**——�
   被占住**——这是「卡死」的最强证据，但只能发现数秒级的阻塞，量不出几百毫秒的卡顿。
 - **ANR 不在 `logcat -s AndroidRuntime` 里**，要查 `logcat -b events | grep am_anr`。
 - **`dumpsys activity` 不一定输出 `mResumedActivity`**（有时只有 `topResumedActivity`），
-  判断「当前是哪个界面」要两个都匹配。
+  判断「当前是哪个界面」要两个都匹配。**注意别用 `grep -m1 ResumedActivity` 一把抓**——
+  `mResumedActivity` 是每条任务记录里的另一个字段，抓错了会得出「前台是别的应用」这种
+  根本不成立的结论（2026-09-16 为此白绕一圈）。
+- **屏幕休眠时 `uiautomator dump` 一定返回 `null root node`，而 exit code 仍是 0**——不报错，
+  但所有按文本读的断言会静默读成空（`实际=None` 一片），看起来像产品全崩。
+  dump 前调一次 `_fixtures.ensure_awake()`（幂等，醒着只多一次 `dumpsys power`）；
+  诊断用 `dumpsys power | grep mWakefulness=`。设备空闲一段时间就会睡，跑之前先想到它。
+- **`input swipe` 别从屏幕边缘起手**：起手点落在系统的「边缘返回手势」区（默认左右各二三十像素）
+  时，整个手势会被系统吃掉变成**返回**——症状是「拖滑块没反应」，或者更迷惑的「页面退了一层、
+  控件从 dump 里消失」。实测拖字号/行距滑块时踩过：从 x≈20 起手，两次 swipe 把设置页和文档
+  各退了一层，偏好文件里一个字节都没写。起手内移到离边缘 ≥100px，落点也留 30px。
+- **点/拖之前先找控件、别按文字点**：字号/行距是 `SteppedSlider`（Slider + 当前值标签），
+  **没有**「22」「1.8」这类可点文字——按文字点必然落空（2026-09-16 因此 5 条断言假失败）。
+  同理，`SearchPanel` 的查询框/替换框是自绘 `BasicTextField`，**在语义树里没有节点**，
+  只能靠「面板已开」判断 + 按按钮 bounds 反推位置。
+- **注入键（`input text` / `input keyevent`）可能整台设备上都不带字符**：按键会到达应用，
+  但 `utf16CodePoint == 0`，于是 Compose 与普通 `EditText` 都不插入（`tap` 正常、
+  **IME 提交路径正常**——查找框那种自动聚焦的输入框反而进得去）。这类设备上「打字」测不了，
+  所以输入类断言先探一下（`_input_probe.py`，三态）。两个方向都要小心：
+  **「该变」型断言：过了就记通过，只有「没过 + 探针确认通道坏掉」才标 skip**（反过来会放过真回归）；
+  **「不该变」型断言（敲了字内容不变）：通道坏掉时必须标 skip**，否则恒真的 "OK" 会假装验证过了。
 
 ## 怎么模拟「文件被别的应用改了」
 
@@ -111,5 +155,8 @@ adb shell content write --uri "content://media/external/file/<id>" < new_content
 
 - MediaStore 对**没有读媒体权限**的应用，`query` 会返回**空 cursor**（不抛异常、不报错），
   看起来就像文件不存在；而 `adb shell content query` 用同一个 Uri 却查得到。
-- 所以 `tools/README` 这一节之外，产品代码里也有一条对应结论：**外部改动的判据落在内容
-  比对上，元数据只用来走「明确没变」的快速路径**（见 `EditorViewModel.checkExternalChange`）。
+- 所以产品代码里也有一条对应结论：**可编辑文档的判据只落在内容比对上**。元数据那条
+  「明确没变就跳过」的快速路径在 2026-09-16 被收回到**只读的大文件**那一条路（那里重读 4MB
+  是秒级，只能退而求其次）；可编辑文档每次回前台都读回来比内容。理由是实测看到元数据
+  **滞后好几秒、甚至报着上一轮的旧值**（`content write` 写完，provider 那边还是老数字）——
+  拿它去否决可信的内容比对，会让外部改动被静默漏掉（见 `EditorViewModel.checkExternalChange`）。

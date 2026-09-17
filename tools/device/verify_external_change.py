@@ -17,7 +17,8 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _fixtures import fixture
+from _fixtures import ensure_awake, fixture
+from _input_probe import SKIP_REASON, input_injection_probe
 
 ADB = os.path.expanduser("~/Library/Android/sdk/platform-tools/adb")
 PKG = "com.textnote.app"
@@ -49,6 +50,7 @@ def local_adb(*args):
 
 
 def ui():
+    ensure_awake()   # 屏幕休眠时 dump 只会返回 null root node（exit code 仍是 0）
     for _ in range(3):
         sh("rm -f /sdcard/ui.xml")
         r = subprocess.run([ADB, "shell", "uiautomator", "dump", "/sdcard/ui.xml"],
@@ -145,6 +147,17 @@ def to_foreground():
 
 
 print("=== 0. 准备 ===")
+# 先探本机的「注入键」能不能用：不能用的话第 4、5 步的输入断言必须标 skip 而不是记失败。
+# 判据见 _input_probe（拿系统设置的搜索框当对照，不碰被测应用）。
+INJECT_OK = input_injection_probe()
+if INJECT_OK is None:
+    print("  [!] 没找到对照输入框，输入类断言不下结论——若它失败，先怀疑字没进去")
+elif INJECT_OK:
+    print("  注入键可用（对照框收到了探针串）")
+else:
+    print("  [!] 本机 `input text` 对**任何应用**都无效（系统设置的对照框也进不去）")
+    print("      第 4、5 步里的输入断言标 skip —— 这是设备侧的问题，不是产品问题")
+
 sh(f"pm clear {PKG}")
 HERE = os.path.dirname(os.path.abspath(__file__))
 subprocess.run([sys.executable, os.path.join(HERE, "make_fixtures.py"), "small"],
@@ -190,8 +203,13 @@ check("提示已消失", not any('在别的应用里被修改了' in x for x in 
 print("=== 4. 回归：保存自己的写入不能误报外部改动 ===")
 tap_text('second line')            # 点进编辑区
 time.sleep(2)
-sh("input text 'ZZ'")
-time.sleep(1.5)
+if INJECT_OK:
+    sh("input text 'ZZ'")
+    time.sleep(1.5)
+else:
+    print("  note 输入没进去（" + SKIP_REASON + "）")
+    print("       于是没有「未保存改动」这个前提，保存下去的正文与打开时相同")
+    print("       （回归强度减弱，但「保存后不误报」本身仍然成立）")
 check("保存按钮可点", tap_desc('保存'))
 time.sleep(2)
 to_background()
@@ -204,14 +222,23 @@ after_save = char_count()
 sh("input text 'QQQ'")
 time.sleep(1.5)
 typed = char_count()
-check("输入被记录（字数增加）", typed is not None and after_save is not None
-      and typed > after_save)
+# 过了就记通过；只有「没进去 + 探针确认本机注入通道坏掉」才豁免——方向反了会放过真回归
+if typed is not None and after_save is not None and typed > after_save:
+    check("输入被记录（字数增加）", True)
+elif INJECT_OK is False:
+    print("  skip 输入被记录：本机注入键对任何应用都无效（见第 0 步），这条现在测不了")
+    print(f"       {SKIP_REASON}")
+    typed = after_save
+else:
+    check("输入被记录（字数增加）", False)
 write_from_outside("THIRD EXTERNAL CHANGE\nsecond line\nthird line\n")
 to_background()
 to_foreground()
 check("有未保存改动时同样给出提示", wait_text('这个文件在别的应用里被修改了'))
 tap_text('保留我的')
 time.sleep(1.5)
+if not INJECT_OK:
+    print("       （没有本地改动，这条退化成「外部写入没有顶替我的缓冲」）")
 check("保留我的之后，我的内容还在", char_count() == typed)
 
 print("=== 6. 文件被删除 ===")

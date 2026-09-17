@@ -62,6 +62,11 @@ jobs:
           chmod +x tools/run_checks.sh
           tools/run_checks.sh
 
+      # 多语言资源的一致性。这类错误**不会让构建失败**（少一条键只是静默回落成英文、
+      # 假选项要到系统设置里才看得见），所以得单独卡一道。
+      - name: 校验多语言资源一致
+        run: python3 tools/check_locales.py
+
       # 「还原了密钥」不等于「构建用上了」。打 tag 时核一下产物证书——
       # 这条门禁挡的正是「密钥在、包却签成了 debug」这种静默失败。
       - name: 校验签名未退回 debug 密钥

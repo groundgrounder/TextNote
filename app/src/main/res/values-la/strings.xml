@@ -1,0 +1,100 @@
+<?xml version="1.0" encoding="utf-8"?>
+<!--
+  Lingua Latina (Neo-Latina). 术语口径，改文案前先读：
+  fasciculus = 文件，index = 列表，tabula = 面板，programma fasciculorum = 文件管理器；
+  nota = 字符（不用 littera，标点数字也是 nota），versus = 行，occursus = 一处匹配；
+  exemplar = 草稿（本应用里它就是被存下来的那份副本）；charta parietalis = 壁纸；
+  unguis = 衬线（字脚），故 sine unguibus / cum unguibus = 无衬线 / 衬线；
+  unius latitudinis = 等宽。动作一律用不定式（Aperire / Servare / Quaerere），
+  与拉丁语软件菜单的传统一致。
+  ⚠️ 替换那一行**故意分开用两个词**：按钮用短的 mutare，字段占位符保留长的 substituere。
+  「Substituere」一词 11 个字母，做按钮标签会把同一行的输入框挤窄（比英文 Replace 多占约 20dp）；
+  占位符在框内不占宽度，长一点反而更说明该填什么。别为了「统一」把按钮改回长词。
+-->
+<resources>
+    <string name="app_name">TextNote</string>
+
+    <string name="open_file">Aperire fasciculum</string>
+    <string name="new_file">Novus fasciculus</string>
+    <string name="save_as">Servare sub nomine novo…</string>
+    <string name="more_actions">Plures actiones</string>
+    <string name="save">Servare</string>
+    <string name="undo">Revocare</string>
+    <string name="redo">Iterum facere</string>
+    <string name="saved">Servatum est</string>
+    <string name="save_failed">Servare non contigit: ius in hunc fasciculum scribendi deest</string>
+    <string name="read_only">Tantum legendum</string>
+    <string name="untitled">Sine titulo.txt</string>
+    <string name="back_to_files">Redire ad indicem fasciculorum</string>
+
+    <string name="open_hint">Tange “Novus fasciculus” ut scribere incipias, aut “Aperire fasciculum” ut fasciculum textus iam exstantem eligas\nFasciculi textus etiam ex programmate fasciculorum aperiri possunt</string>
+
+    <string name="editor_placeholder">Incipe scribere…</string>
+
+    <string name="stats_format">%1$d notae · %2$d versus</string>
+    <string name="line_column">Vers. %1$d, Col. %2$d</string>
+    <string name="syntax_auto">Automatica</string>
+    <string name="syntax_desc_auto">Syntaxis: %1$s (automatica)</string>
+    <string name="syntax_desc_manual">Syntaxis: %1$s (manualis)</string>
+
+    <string name="document_unavailable_message">TextNote hunc fasciculum iam attingere non potest: aut motus aut deletus est.</string>
+
+    <string name="document_too_large_title">Fasciculus nimis magnus ut aperiatur</string>
+    <string name="document_too_large_message">Hic fasciculus maior est quam %1$s, dum %2$s tantum in memoriam legi possunt.</string>
+    <string name="document_too_large_reason">TextNote totum fasciculum in memoriam legit ut eum ostendat; quare ultra hunc modum apertio memoriam applicationis exhauriret. Si fasciculum alio instrumento in partes diviseris, hic aperire poteris.</string>
+    <string name="document_too_large_back">Alium fasciculum eligere</string>
+    <string name="document_read_only">Tantum legendum — %1$d notae modum %2$s mutandi excedunt; legere et quaerere potes, scribere non potes.</string>
+    <string name="document_slow">Fasciculus magnus (%1$d notae) — scriptura haesitare potest</string>
+    <string name="readonly_line_truncated">⋯ in hoc versu %1$d notae, praecisae</string>
+
+    <string name="search">Quaerere</string>
+    <string name="search_query_hint">Quaerere</string>
+    <string name="search_replace_hint">Substituere</string>
+    <string name="search_replace">Mutare</string>
+    <string name="search_replace_all">Omnia</string>
+    <string name="search_close">Claudere tabulam quaerendi</string>
+    <string name="search_prev">Occursus praecedens</string>
+    <string name="search_next">Occursus sequens</string>
+    <string name="search_regex">Uti expressionibus regularibus</string>
+    <string name="search_case">Distinguere maiusculas et minusculas</string>
+    <string name="search_word">Verbum integrum</string>
+    <string name="search_count">%1$d%2$s occursus</string>
+    <string name="search_position">%1$d/%2$d</string>
+    <string name="search_no_match">Nullus occursus</string>
+    <string name="search_invalid_regex">Forma vitiosa</string>
+    <string name="search_replaced">%1$d substituta</string>
+
+    <string name="draft_found">Inventum est exemplar e scriptione superiore</string>
+    <string name="restore">Restituere</string>
+    <string name="discard">Abicere</string>
+    <string name="unsaved_drafts">Exemplaria non servata</string>
+    <string name="draft_chars_format">%1$d notae</string>
+    <string name="draft_expires_in">Post %1$d dies sponte delebitur</string>
+
+    <string name="recent_files">Nuper aperta</string>
+    <string name="recent_needs_permission">Aditus amissus — tange ut hunc fasciculum iterum eligas</string>
+    <string name="remove_from_list">Ex indice removere</string>
+
+    <string name="external_change_modified">Hic fasciculus ab alia applicatione mutatus est</string>
+    <string name="external_change_gone">Hic fasciculus motus aut deletus est</string>
+    <string name="external_change_reload">Iterum legere</string>
+    <string name="external_change_keep">Meum servare</string>
+    <string name="external_change_dismiss">Intellexi</string>
+
+    <string name="settings_title">Optiones</string>
+    <string name="settings_open">Optiones</string>
+    <string name="settings_appearance">Aspectus</string>
+    <string name="settings_text">Textus</string>
+    <string name="back">Redire</string>
+    <string name="theme_system">Systema</string>
+    <string name="theme_light">Lucidum</string>
+    <string name="theme_dark">Obscurum</string>
+    <string name="dynamic_color_title">Coloribus chartae parietalis uti</string>
+    <string name="dynamic_color_desc">Colorem principalem e charta parietali tua sumit</string>
+    <string name="dynamic_color_unsupported">Android 12 vel recentiore opus est</string>
+    <string name="font_monospace">Unius latitudinis</string>
+    <string name="font_sans">Sine unguibus</string>
+    <string name="font_serif">Cum unguibus</string>
+    <string name="font_size_label">Magnitudo litterarum</string>
+    <string name="line_height_label">Intervallum versuum</string>
+</resources>

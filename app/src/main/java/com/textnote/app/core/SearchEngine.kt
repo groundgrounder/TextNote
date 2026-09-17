@@ -167,6 +167,11 @@ object SearchEngine {
      * [groups] 与 [SearchMatch.groups] 同一口径：下标即组号，`groups[0]` 是整段命中。
      * 越界的组号展开成空串（不报错、不留下 `$9` 这种字面量残渣）。
      *
+     * **认不出来的引用一律原样保留**：`$x`、`${name}`、`${}`、未闭合的 `${1` 都按字面量
+     * 留在结果里。这条比「越界组号给空串」更严，因为「越界」是数字明确说了要引用某组、
+     * 只是没有那一组；而「认不出来」意味着**我们不知道用户想写什么**——替换是会写进文档的
+     * 操作，猜错就是把他的字删了。
+     *
      * 只认 `$`。不把 `\` 当转义符，是因为在非正则替换里用户写 `\n` 通常是想要字面的
      * 反斜杠 n，而不是换行——编辑器不该在这里自作聪明。
      *
@@ -191,12 +196,17 @@ object SearchEngine {
                 }
                 '{' -> {
                     val close = template.indexOf('}', i + 2)
-                    if (close < 0) {
+                    val index = if (close < 0) null else template.substring(i + 2, close).trim().toIntOrNull()
+                    if (index == null) {
+                        // 认不出来的 ${...}——组名不是数字（`${name}`）、空花括号、或干脆没闭合——
+                        // 一律**按字面量留住**，与下面 `$x` 那一支同一口径。曾经这里会把整段
+                        // `${name}` 悄悄删掉：那是在用户按下的「全部替换」里删掉他自己写的字，
+                        // 而且同一个「未知组引用」的两种写法（`$x` 留着、`${x}` 删掉）给出相反结果，
+                        // 出事之后无从解释。
                         sb.append('$')
                         i++
                     } else {
-                        val index = template.substring(i + 2, close).trim().toIntOrNull()
-                        if (index != null) sb.append(groups.getOrNull(index).orEmpty())
+                        sb.append(groups.getOrNull(index).orEmpty())
                         i = close + 1
                     }
                 }

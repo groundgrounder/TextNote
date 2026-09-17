@@ -1,11 +1,13 @@
 <?xml version="1.0" encoding="utf-8"?>
 <!--
   声明的每一项都必须是本应用真正翻译过的语言，标签与 `values-*` 的 qualifier 一一对应：
-  `en` → `values/`，`zh-Hans` → `values-b+zh+Hans/`，`zh-Hant` → `values-b+zh+Hant/`。
+  `en` → `values/`，`zh-Hans` → `values-b+zh+Hans/`，`zh-Hant` → `values-b+zh+Hant/`，
+  `la` → `values-la/`（带地区/书写系统的用 BCP-47 的 `+` 形式命名目录，纯语言码直接拼在后面）。
   列进来却没翻译的语言，会让用户在系统设置里选到「看着变了、其实还是兜底文案」的假选项。
 -->
 <locale-config xmlns:android="http://schemas.android.com/apk/res/android">
     <locale android:name="en" />
     <locale android:name="zh-Hans" />
     <locale android:name="zh-Hant" />
+    <locale android:name="la" />
 </locale-config>

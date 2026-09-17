@@ -43,6 +43,15 @@ import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.launch
 import kotlinx.coroutines.withContext
 
+/**
+ * 应用外壳：单 Activity，**不引导航库**。
+ *
+ * 这一层持有的是**跨屏存活**的东西——外部 VIEW/EDIT intent 传入的 Uri、首页那两个列表
+ * （最近打开 / 草稿）、重新授权流程、设置流；四块界面之间的切换就是几个 `rememberSaveable`
+ * 布尔量。这么小的应用套一层导航图只会多一层间接，所以刻意留在这里。
+ *
+ * 编辑器自己的状态全在 [EditorViewModel] 里，由 `viewModel()` 按 Activity 作用域持有。
+ */
 class MainActivity : ComponentActivity() {
 
     /** 外部（文件管理器等）通过 VIEW/EDIT intent 传入的文档 Uri，桥接给 Compose */

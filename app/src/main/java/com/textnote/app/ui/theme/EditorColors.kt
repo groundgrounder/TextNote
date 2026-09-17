@@ -1,4 +1,4 @@
-package com.textnote.app.ui.editor
+package com.textnote.app.ui.theme
 
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.remember

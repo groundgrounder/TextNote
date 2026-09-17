@@ -29,7 +29,7 @@ import sys
 import time
 
 sys.path.insert(0, os.path.dirname(os.path.abspath(__file__)))
-from _fixtures import ADB  # noqa: E402
+from _fixtures import ADB, ensure_awake  # noqa: E402
 
 PKG = "com.textnote.app"
 NAME = "tn_syntax_test.log"
@@ -50,7 +50,10 @@ def ui():
 
     `uiautomator dump` 偶发失败，失败时会**留下上一次的 /sdcard/ui.xml**，
     pull 回来的是旧界面，据此断言会得到假阴性。所以每次先 rm，再重试。
+
+    另外屏幕休眠时 dump 一定返回 `null root node`（exit code 仍是 0）→ 先唤醒。
     """
+    ensure_awake()
     for _ in range(3):
         sh(f"{ADB} shell rm -f /sdcard/ui.xml")
         if "dumped" in sh(f"{ADB} shell uiautomator dump /sdcard/ui.xml"):
