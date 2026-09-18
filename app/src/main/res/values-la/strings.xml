@@ -74,6 +74,8 @@
     <string name="recent_files">Nuper aperta</string>
     <string name="recent_needs_permission">Aditus amissus — tange ut hunc fasciculum iterum eligas</string>
     <string name="remove_from_list">Ex indice removere</string>
+    <string name="open_in_new_window">In nova fenestra aperire</string>
+    <string name="already_open_in_a_window">Hic fasciculus iam in alia fenestra apertus est</string>
 
     <string name="external_change_modified">Hic fasciculus ab alia applicatione mutatus est</string>
     <string name="external_change_gone">Hic fasciculus motus aut deletus est</string>
@@ -97,4 +99,11 @@
     <string name="font_serif">Cum unguibus</string>
     <string name="font_size_label">Magnitudo litterarum</string>
     <string name="line_height_label">Intervallum versuum</string>
+    <string name="soft_wrap_title">Lineas longas frangere</string>
+    <string name="soft_wrap_desc">Lineae longae in latitudinem accommodantur</string>
+
+    <string name="settings_language">Lingua</string>
+    <string name="language_app">Lingua programmatis</string>
+    <string name="language_system">Systema sequi</string>
+    <string name="done">Actum</string>
 </resources>

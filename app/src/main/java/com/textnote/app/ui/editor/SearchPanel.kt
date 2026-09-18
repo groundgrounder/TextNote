@@ -5,10 +5,12 @@ import androidx.compose.foundation.layout.Arrangement
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.RowScope
 import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.foundation.layout.size
+import androidx.compose.foundation.layout.widthIn
 import androidx.compose.foundation.text.BasicTextField
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Close
@@ -43,13 +45,15 @@ import com.textnote.app.R
 import com.textnote.app.ui.theme.ControlHeight
 import com.textnote.app.ui.theme.PanelTopShape
 import com.textnote.app.ui.theme.PillShape
+import com.textnote.app.ui.theme.isWideScreen
 import kotlinx.coroutines.delay
 
 /**
  * 查找 / 替换面板（贴在状态栏上方）。
  *
- * 三行的分工是按**使用频率**排的：第一行只放关键词（最常用），第二行是开关与跳转，
- * 第三行才是替换（多数时候只是查找，不需要永远占着高度）。
+ * 分工按**使用频率**排：关键词最常用，开关与跳转次之，替换多数时候用不上、不该常占高度。
+ * 窄屏竖着堆成三行；**宽屏把前两行并成一行**——横屏的平板本来就只有 800dp 高，软键盘一弹
+ * 再吃掉四成，三行面板会把编辑区压到只剩几行可见（见 [isWideScreen] 与两处分支的注释）。
  * 开关一律用 `Aa` `.*` `ab|` 这种字面标签而不是图标——图标对同一含义的画法在不同
  * 图标集里不统一，而这三个字符在编辑器语境里几乎不需要翻译。
  */
@@ -88,79 +92,34 @@ fun SearchPanel(
                 .padding(start = 12.dp, end = 12.dp, top = 14.dp, bottom = 6.dp),
             verticalArrangement = Arrangement.spacedBy(6.dp),
         ) {
-            Row(verticalAlignment = Alignment.CenterVertically) {
-                SearchField(
-                    value = search.query,
-                    onValueChange = { search.updateQuery(it) },
-                    placeholder = stringResource(R.string.search_query_hint),
-                    onDone = onNext,
-                    modifier = Modifier.weight(1f),
-                    // 焦点要交给**输入框本身**：挂在外面那个 Box 上（它不可聚焦）什么也不会发生，
-                    // 自动聚焦与弹键盘就静默失效了。
-                    focusRequester = focusRequester,
-                )
-                IconButton(onClick = onClose, modifier = Modifier.size(ControlHeight)) {
-                    Icon(
-                        Icons.Filled.Close,
-                        contentDescription = stringResource(R.string.search_close),
-                    )
-                }
-            }
-
-            Row(
-                verticalAlignment = Alignment.CenterVertically,
-                horizontalArrangement = Arrangement.spacedBy(4.dp),
-            ) {
-                ToggleChip(
-                    text = ".*",
-                    active = search.regexMode,
-                    description = stringResource(R.string.search_regex),
-                    onClick = { search.toggleRegex() },
-                )
-                ToggleChip(
-                    text = "Aa",
-                    active = search.caseSensitive,
-                    description = stringResource(R.string.search_case),
-                    onClick = { search.toggleCaseSensitive() },
-                )
-                ToggleChip(
-                    text = "ab|",
-                    active = search.wholeWord,
-                    description = stringResource(R.string.search_word),
-                    onClick = { search.toggleWholeWord() },
-                )
-
-                Text(
-                    text = statusText(search),
-                    style = MaterialTheme.typography.labelMedium,
-                    color = if (search.result.invalidPattern) {
-                        MaterialTheme.colorScheme.error
-                    } else {
-                        MaterialTheme.colorScheme.onSurfaceVariant
-                    },
-                    textAlign = TextAlign.Center,
-                    modifier = Modifier.weight(1f),
-                )
-
-                FilledTonalIconButton(
-                    onClick = onPrev,
-                    enabled = search.matches.isNotEmpty(),
-                    modifier = Modifier.size(ControlHeight),
+            // 宽屏把原来的一、二两行并成一行。横屏缺的是**高度**不是宽度：800dp 高的平板上
+            // 软键盘一弹就吃掉四成屏高，三行面板再把编辑区压到只剩四行可见。
+            // 窄屏保持竖排——那边反过来，宽度不够并排摆下这么多控件。
+            if (isWideScreen()) {
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(6.dp),
                 ) {
-                    Icon(
-                        Icons.Filled.KeyboardArrowUp,
-                        contentDescription = stringResource(R.string.search_prev),
-                    )
+                    // 关键词框照旧吃掉全部富余宽度，不另外限宽：正则、路径这类关键词本来就长，
+                    // 横屏给得起。右边那组控件宽度是固定的，所以它的位置不会随输入抖动。
+                    QueryInput(search, focusRequester, onNext, Modifier.weight(1f))
+                    FindToggles(search)
+                    SearchStatus(search, Modifier.widthIn(min = 88.dp))
+                    FindStepper(search, onNext = onNext, onPrev = onPrev)
+                    CloseSearchButton(onClose)
                 }
-                FilledTonalIconButton(
-                    onClick = onNext,
-                    enabled = search.matches.isNotEmpty(),
-                    modifier = Modifier.size(ControlHeight),
+            } else {
+                Row(verticalAlignment = Alignment.CenterVertically) {
+                    QueryInput(search, focusRequester, onNext, Modifier.weight(1f))
+                    CloseSearchButton(onClose)
+                }
+                Row(
+                    verticalAlignment = Alignment.CenterVertically,
+                    horizontalArrangement = Arrangement.spacedBy(4.dp),
                 ) {
-                    Icon(
-                        Icons.Filled.KeyboardArrowDown,
-                        contentDescription = stringResource(R.string.search_next),
-                    )
+                    FindToggles(search)
+                    SearchStatus(search, Modifier.weight(1f))
+                    FindStepper(search, onNext = onNext, onPrev = onPrev)
                 }
             }
 
@@ -189,6 +148,109 @@ fun SearchPanel(
                 }
             }
         }
+    }
+}
+
+/**
+ * 关键词输入框。两套排布都要用它，所以连「焦点必须挂在输入框本身」那条说明一起收在这里。
+ */
+@Composable
+private fun QueryInput(
+    search: EditorSearch,
+    focusRequester: FocusRequester,
+    onDone: () -> Unit,
+    modifier: Modifier,
+) {
+    SearchField(
+        value = search.query,
+        onValueChange = { search.updateQuery(it) },
+        placeholder = stringResource(R.string.search_query_hint),
+        onDone = onDone,
+        modifier = modifier,
+        // 焦点要交给**输入框本身**：挂在外面那个 Box 上（它不可聚焦）什么也不会发生，
+        // 自动聚焦与弹键盘就静默失效了。
+        focusRequester = focusRequester,
+    )
+}
+
+@Composable
+private fun CloseSearchButton(onClose: () -> Unit) {
+    IconButton(onClick = onClose, modifier = Modifier.size(ControlHeight)) {
+        Icon(
+            Icons.Filled.Close,
+            contentDescription = stringResource(R.string.search_close),
+        )
+    }
+}
+
+/**
+ * 正则 / 大小写 / 全词三个开关。
+ *
+ * 写成 [RowScope] 扩展而不是自带一个 `Row`：两套排布里它和邻居的间距口径不同
+ * （窄屏 4dp、宽屏 6dp），让调用方的那个 `Row` 统一管，这里只负责摆出三个开关。
+ */
+@Composable
+private fun RowScope.FindToggles(search: EditorSearch) {
+    ToggleChip(
+        text = ".*",
+        active = search.regexMode,
+        description = stringResource(R.string.search_regex),
+        onClick = { search.toggleRegex() },
+    )
+    ToggleChip(
+        text = "Aa",
+        active = search.caseSensitive,
+        description = stringResource(R.string.search_case),
+        onClick = { search.toggleCaseSensitive() },
+    )
+    ToggleChip(
+        text = "ab|",
+        active = search.wholeWord,
+        description = stringResource(R.string.search_word),
+        onClick = { search.toggleWholeWord() },
+    )
+}
+
+/** 命中数 / 当前位置。窄屏靠 weight 把这一行撑开居中，宽屏只给最小宽度免得数字一二位变化时左右晃。 */
+@Composable
+private fun RowScope.SearchStatus(search: EditorSearch, modifier: Modifier) {
+    Text(
+        text = statusText(search),
+        style = MaterialTheme.typography.labelMedium,
+        color = if (search.result.invalidPattern) {
+            MaterialTheme.colorScheme.error
+        } else {
+            MaterialTheme.colorScheme.onSurfaceVariant
+        },
+        textAlign = TextAlign.Center,
+        // 宽屏那一行里全是并列控件，这段文字一旦换行就会把整条面板撑高——省高度正是这次改动的目的
+        maxLines = 1,
+        modifier = modifier,
+    )
+}
+
+/** 上一处 / 下一处。 */
+@Composable
+private fun RowScope.FindStepper(search: EditorSearch, onNext: () -> Unit, onPrev: () -> Unit) {
+    FilledTonalIconButton(
+        onClick = onPrev,
+        enabled = search.matches.isNotEmpty(),
+        modifier = Modifier.size(ControlHeight),
+    ) {
+        Icon(
+            Icons.Filled.KeyboardArrowUp,
+            contentDescription = stringResource(R.string.search_prev),
+        )
+    }
+    FilledTonalIconButton(
+        onClick = onNext,
+        enabled = search.matches.isNotEmpty(),
+        modifier = Modifier.size(ControlHeight),
+    ) {
+        Icon(
+            Icons.Filled.KeyboardArrowDown,
+            contentDescription = stringResource(R.string.search_next),
+        )
     }
 }
 

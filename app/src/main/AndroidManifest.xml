@@ -6,13 +6,24 @@
         android:icon="@mipmap/ic_launcher"
         android:label="@string/app_name"
         android:localeConfig="@xml/locales_config"
+        android:name=".TextNoteApplication"
         android:supportsRtl="true"
         android:theme="@style/Theme.TextNote">
 
+        <!--
+            多实例：同一个应用可以在分屏/桌面窗口里占两块，各显示一份文档。
+            - documentLaunchMode="intoExisting"：同一份文档再次打开时**复用**它的窗口，
+              不同文档各开一个新窗口；点桌面图标（不带 data）也会新开一个窗口，
+              等于顺手给了用户一个「新建窗口」的入口。
+            - launchMode **必须是 standard**：singleTask 会把这个 Activity 钉成某个 task 的根，
+              再多的 launch 都只会复用同一个 task，多实例直接失效。
+        -->
         <activity
             android:name=".MainActivity"
             android:exported="true"
-            android:launchMode="singleTask"
+            android:documentLaunchMode="intoExisting"
+            android:launchMode="standard"
+            android:resizeableActivity="true"
             android:windowSoftInputMode="adjustResize">
             <intent-filter>
                 <action android:name="android.intent.action.MAIN" />

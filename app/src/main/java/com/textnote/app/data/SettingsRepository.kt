@@ -42,16 +42,36 @@ data class AppSettings(
     val font: EditorFont = EditorFont.MONOSPACE,
     val fontSizeSp: Int = EditorFontRanges.DEFAULT_SIZE,
     val lineHeightMultiplier: Float = EditorFontRanges.DEFAULT_LINE_HEIGHT,
+    /**
+     * 软换行：长行折行显示。
+     *
+     * 默认开。关掉之后超长行（压缩过的 JSON、minified JS）会变成一条横向拖不到头的长条，
+     * 比折行更难受；但「一行就是一逻辑行」对结构化文本是有意义的，所以留这个口子。
+     *
+     * 只作用于**可编辑**路径。只读浏览那个渲染器始终不折行：它按行懒加载，折行要对每行
+     * 重新做断行计算，实测 2MB 单行会掉到 3 秒一帧。
+     */
+    val softWrap: Boolean = true,
+    /**
+     * 界面语言。
+     *
+     * 真源是 [AppLocaleStore]——它必须在 Compose 还没有起点的 `attachBaseContext` 阶段就能
+     * 读到自己的值，所以不能只活在这里。这一项只是把它捎给设置页，好让界面照常从
+     * [AppSettings] 取数，不必知道背后有两个存储入口。
+     */
+    val appLanguage: AppLanguage = AppLanguage.SYSTEM,
 )
 
 /**
  * 设置存储。
  *
- * 用 SharedPreferences 而不是 DataStore：设置项就 5 个、写入频率极低，
+ * 用 SharedPreferences 而不是 DataStore：设置项就 6 个、写入频率极低，
  * 而 DataStore 要额外依赖与协程作用域管理，收益不成比例。
  * （DraftStore 和 DocumentRepository 也都用 SharedPreferences，保持一致。）
  */
 class SettingsRepository(context: Context) {
+
+    private val appContext = context.applicationContext
 
     private val prefs: SharedPreferences =
         context.getSharedPreferences(PREFS, Context.MODE_PRIVATE)
@@ -72,6 +92,20 @@ class SettingsRepository(context: Context) {
         KEY_LINE,
         value,
     ) { copy(lineHeightMultiplier = EditorFontRanges.coerceLineHeight(value)) }
+
+    fun setSoftWrap(value: Boolean) = update(prefs, KEY_WRAP, value) { copy(softWrap = value) }
+
+    /**
+     * 语言比别的设置多一步：除了落盘，还要同步给系统「按应用语言」（API 33+）。
+     * 这一份逻辑归 [AppLocaleStore] 管，所以不走上面那个 [update] 帮手。
+     *
+     * 注意**不在这里重建 Activity**：语言是在 `attachBaseContext` 阶段套到 Context 上的，
+     * 运行中改不了已经发出去的 Resources，重建必须由界面那一层发起（见 `SettingsScreen`）。
+     */
+    fun setAppLanguage(value: AppLanguage) {
+        AppLocaleStore.write(appContext, value)
+        _settings.value = _settings.value.copy(appLanguage = value)
+    }
 
     /**
      * 写入内存与磁盘。
@@ -109,6 +143,10 @@ class SettingsRepository(context: Context) {
             lineHeightMultiplier = EditorFontRanges.coerceLineHeight(
                 prefs.getFloat(KEY_LINE, EditorFontRanges.DEFAULT_LINE_HEIGHT),
             ),
+            softWrap = prefs.getBoolean(KEY_WRAP, true),
+            // 走 AppLocaleStore 而不是直接读 prefs：系统「按应用语言」也是权威来源，
+            // 那边改过之后由它回写并缓存，这里照它说的算，省得两处各读各的。
+            appLanguage = AppLocaleStore.current(appContext),
         )
     }
 
@@ -119,5 +157,6 @@ class SettingsRepository(context: Context) {
         const val KEY_FONT = "font"
         const val KEY_SIZE = "font_size_sp"
         const val KEY_LINE = "line_height"
+        const val KEY_WRAP = "soft_wrap"
     }
 }

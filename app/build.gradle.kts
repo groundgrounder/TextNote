@@ -26,8 +26,8 @@ android {
         applicationId = "com.textnote.app"
         minSdk = 26
         targetSdk = 35
-        versionCode = 5
-        versionName = "0.1.4"
+        versionCode = 6
+        versionName = "0.2.0"
     }
 
     // 只有拿得到密钥时才声明它，buildTypes 那边再按需挂上。
@@ -56,6 +56,22 @@ android {
         compose = true
         // 不开 buildConfig：全项目零 `BuildConfig` 引用，开它只会多生成一个类。
         // 哪天要按构建类型区分常量（比如日志开关），再把它打开。
+    }
+
+    /**
+     * App Bundle 默认**按语言拆分**：只把「用户设备语言」的那套 strings.xml 下发给设备。
+     * 而本应用在设置页里随时可以切语言（见 `data/AppLanguage.kt`），切过去的正是**没下发**
+     * 的那几套 —— 界面纹丝不动，用户只会以为语言选项坏了。关掉拆分，代价是基础包多带
+     * 三套 strings.xml（几 KB）。
+     *
+     * 当前 CI 出的是 APK（`assembleRelease`，APK 不做拆分），所以这条现在不会真的触发；
+     * 它是给「将来改用 AAB 上架」预置的 —— 那时若忘了关，故障是静默的，事后极难查回来。
+     * （lint 的 `AppBundleLocaleChanges` 就是报这个。）
+     */
+    bundle {
+        language {
+            enableSplit = false
+        }
     }
 
     compileOptions {

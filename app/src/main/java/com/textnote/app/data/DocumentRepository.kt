@@ -7,6 +7,7 @@ import android.net.Uri
 import android.os.Process
 import android.provider.DocumentsContract
 import android.provider.OpenableColumns
+import android.system.Os
 import android.text.format.DateFormat
 import com.textnote.app.R
 import com.textnote.app.core.EditorLimits
@@ -274,6 +275,29 @@ class DocumentRepository(private val context: Context) {
             if (it.moveToFirst() && !it.isNull(0)) it.getLong(0) else null
         }
     }.getOrNull()
+
+    // ---------- 文件身份 ----------
+
+    /**
+     * 文件的**身份**：本地文件的 `(st_dev, st_ino)`。
+     *
+     * 同一份文件从不同来源拿到的是**两个不同的 Uri**（文件管理器给
+     * `content://media/external/file/<id>`，系统选择器给
+     * `content://com.android.externalstorage.documents/document/primary%3A…`），
+     * 但两者打开同一个文件时算出的身份相同 —— 多窗口去重靠它判断「两块窗口是不是在编辑同一个文件」
+     * （见 `MainActivity` 里的 `OpenDocumentRegistry`），只比 Uri 会把这种情况漏掉。
+     *
+     * 拿不到文件描述符时（远端 provider 把文件当流给）返回 null，调用方退回按 Uri 判断：
+     * **宁可多开一个窗口，也不要误挡**。
+     */
+    suspend fun fileIdentity(uri: Uri): String? = withContext(Dispatchers.IO) {
+        runCatching {
+            context.contentResolver.openFileDescriptor(uri, "r")?.use { pfd ->
+                val stat = Os.fstat(pfd.fileDescriptor)
+                "${stat.st_dev}:${stat.st_ino}"
+            }
+        }.getOrNull()
+    }
 
     // ---------- 权限持久化 ----------
 

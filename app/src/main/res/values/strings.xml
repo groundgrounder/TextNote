@@ -62,6 +62,8 @@
     <string name="recent_files">Recently opened</string>
     <string name="recent_needs_permission">Permission lost — tap to pick this file again</string>
     <string name="remove_from_list">Remove from list</string>
+    <string name="open_in_new_window">Open in new window</string>
+    <string name="already_open_in_a_window">This file is already open in another window</string>
 
     <string name="external_change_modified">This file was changed by another app</string>
     <string name="external_change_gone">This file was moved or deleted</string>
@@ -85,4 +87,11 @@
     <string name="font_serif">Serif</string>
     <string name="font_size_label">Font size</string>
     <string name="line_height_label">Line height</string>
+    <string name="soft_wrap_title">Soft wrap</string>
+    <string name="soft_wrap_desc">Wrap long lines to fit the width instead of scrolling sideways</string>
+
+    <string name="settings_language">Language</string>
+    <string name="language_app">App language</string>
+    <string name="language_system">Follow system</string>
+    <string name="done">Done</string>
 </resources>

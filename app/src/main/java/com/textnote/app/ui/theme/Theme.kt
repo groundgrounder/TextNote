@@ -5,6 +5,8 @@ import android.content.Context
 import android.content.ContextWrapper
 import android.os.Build
 import androidx.compose.foundation.isSystemInDarkTheme
+import androidx.compose.foundation.layout.widthIn
+import androidx.compose.foundation.layout.wrapContentWidth
 import androidx.compose.foundation.shape.RoundedCornerShape
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Shapes
@@ -15,8 +17,11 @@ import androidx.compose.material3.lightColorScheme
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.CompositionLocalProvider
 import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.ui.Alignment
+import androidx.compose.ui.Modifier
 import androidx.compose.ui.graphics.Color
 import androidx.compose.ui.graphics.Shape
+import androidx.compose.ui.platform.LocalConfiguration
 import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.platform.LocalView
 import androidx.compose.ui.unit.dp
@@ -99,6 +104,48 @@ val PillShape: Shape = RoundedCornerShape(percent = 50)
  * 混着用就会出现「同一屏里左边缘参差」。44 取的是本项目原本写在 `heightIn(min = 44.dp)` 上的值。
  */
 val ControlHeight = 44.dp
+
+/**
+ * 判定「宽屏」的宽度阈值。
+ *
+ * 取 600 而不是 M3 里 expanded 那一档的 840：这台平板竖屏是 800dp、横屏 1280dp，
+ * 若按 840 划线，同一个界面转个方向就会在两套排布之间跳。600 能把「平板竖屏 / 平板横屏 /
+ * 手机横屏」收进同一档，手机竖屏（多数是 360~430dp）仍走原来那套，一个字不改。
+ */
+private const val WideScreenMinWidthDp = 600
+
+/**
+ * 宽屏下列表与表单类内容的宽度上限。
+ *
+ * 不限的话一行会横跨整块屏幕——实测 1280dp 宽的平板上，首页列表项被拉到 1250dp、
+ * 设置页的滑块 1240dp、三个等宽选项各 415dp：文字都在左边、控件散在两头，
+ * 眼睛要横着扫一整屏才看得完一行。
+ *
+ * 只约束**列表与表单**。[EditorScreen] 的正文与 [SearchPanel] 都不套它：
+ * 正文全宽是编辑器的常态（桌面上的编辑器都如此），而查找面板的富余宽度正好用来多摆控件。
+ */
+val ContentMaxWidth = 640.dp
+
+/** 此刻是否算宽屏。只有需要**换一套排布**时才用它（目前只有查找面板）。 */
+@Composable
+fun isWideScreen(): Boolean =
+    LocalConfiguration.current.screenWidthDp >= WideScreenMinWidthDp
+
+/**
+ * 宽屏下把内容收进 [ContentMaxWidth] 并居中，窄屏原样返回。
+ *
+ * 做成 [Modifier] 扩展而不是包一层 `Box`：调用点只在原有的 modifier 链上多接一环，
+ * 要不要限宽、限多宽都由这里说了算，界面侧不需要知道自己此刻是宽屏还是窄屏。
+ * 先 `wrapContentWidth` 再 `widthIn` 的顺序不能反——外层得先允许子节点比约束小，
+ * 内层收窄之后才有地方可居中。
+ */
+@Composable
+fun Modifier.readableWidth(): Modifier {
+    if (!isWideScreen()) return this
+    return this
+        .wrapContentWidth(Alignment.CenterHorizontally)
+        .widthIn(max = ContentMaxWidth)
+}
 
 /** 把「跟随系统 / 浅色 / 深色」解析成此刻是否用深色。设置页的预览也要这个判断。 */
 @Composable

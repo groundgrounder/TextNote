@@ -2,28 +2,27 @@ package com.textnote.app.ui.editor
 import androidx.activity.compose.BackHandler
 import androidx.activity.compose.rememberLauncherForActivityResult
 import androidx.activity.result.contract.ActivityResultContracts
-import androidx.compose.foundation.clickable
-import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.horizontalScroll
 import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Row
+import androidx.compose.foundation.layout.WindowInsets
+import androidx.compose.foundation.layout.WindowInsetsSides
 import androidx.compose.foundation.layout.fillMaxHeight
 import androidx.compose.foundation.layout.fillMaxSize
 import androidx.compose.foundation.layout.fillMaxWidth
-import androidx.compose.foundation.layout.imePadding
-import androidx.compose.foundation.layout.navigationBarsPadding
+import androidx.compose.foundation.layout.only
 import androidx.compose.foundation.layout.padding
+import androidx.compose.foundation.layout.systemBars
 import androidx.compose.foundation.rememberScrollState
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.automirrored.filled.ArrowBack
 import androidx.compose.material.icons.automirrored.filled.Redo
 import androidx.compose.material.icons.automirrored.filled.Undo
-import androidx.compose.material.icons.filled.Check
 import androidx.compose.material.icons.filled.MoreVert
 import androidx.compose.material.icons.filled.Search
 import androidx.compose.material.icons.outlined.Save
-import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.DropdownMenu
 import androidx.compose.material3.DropdownMenuItem
@@ -34,14 +33,11 @@ import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.Scaffold
 import androidx.compose.material3.SnackbarHost
 import androidx.compose.material3.SnackbarHostState
-import androidx.compose.material3.Surface
 import androidx.compose.material3.Text
-import androidx.compose.material3.TextButton
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
 import androidx.compose.runtime.LaunchedEffect
 import androidx.compose.runtime.getValue
-import androidx.compose.runtime.mutableIntStateOf
 import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
 import androidx.compose.runtime.rememberCoroutineScope
@@ -60,7 +56,6 @@ import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.onSizeChanged
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
-import androidx.compose.ui.semantics.semantics
 import androidx.compose.ui.text.AnnotatedString
 import androidx.compose.ui.text.SpanStyle
 import androidx.compose.ui.text.TextLayoutResult
@@ -69,16 +64,13 @@ import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextOverflow
+import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.text.BasicTextField
 import com.textnote.app.R
 import com.textnote.app.core.HighlightToken
 import com.textnote.app.core.LineIndex
-import com.textnote.app.core.formatBytes
 import com.textnote.app.core.SearchMatch
-import com.textnote.app.core.SyntaxRegistry
-import com.textnote.app.data.OpenResult
-import com.textnote.app.data.TextEncoding
 import com.textnote.app.ui.theme.HighlightStyles
 import com.textnote.app.ui.theme.LocalEditorTextStyle
 import com.textnote.app.ui.theme.rememberHighlightStyles
@@ -103,6 +95,13 @@ fun EditorScreen(
      * 背景会按设置变深、语法色却按系统留在亮色那套，深色文字压在深色背景上基本看不见。
      */
     darkTheme: Boolean,
+    /**
+     * 长行是否折行显示（设置项）。
+     *
+     * **只作用于这一条可编辑路径**：只读浏览那个渲染器出于性能始终不折行，
+     * 理由见 [com.textnote.app.data.AppSettings.softWrap]。
+     */
+    softWrap: Boolean,
     onClose: () -> Unit,
     onSettingsClick: () -> Unit,
     modifier: Modifier = Modifier,
@@ -145,8 +144,11 @@ fun EditorScreen(
     Scaffold(
         modifier = modifier,
         snackbarHost = { SnackbarHost(snackbar) },
-        // 交给 TopAppBar / bottomBar 各自处理，避免 systemBars 被重复算进内容 padding
-        contentWindowInsets = androidx.compose.foundation.layout.WindowInsets(0, 0, 0, 0),
+        // 顶/底仍由 topBar 与 bottomBar 各自处理（避开「systemBars 被重复算进内容 padding」），
+        // 这里只补**左右**：横屏时系统导航栏有可能立在侧边，而中间那块编辑区原本谁都没吃这份 inset，
+        // 正文右端会被压在导航栏底下。当前这台平板导航栏在底部、左右 inset 为 0，所以这是纯防御，
+        // 不改变任何现有观感；侧边导航或侧边挖孔的设备上才会真的生效。
+        contentWindowInsets = WindowInsets.systemBars.only(WindowInsetsSides.Horizontal),
         topBar = {
             TopAppBar(
                 navigationIcon = {
@@ -360,6 +362,7 @@ fun EditorScreen(
                         currentMatchBackground = currentMatchBackground,
                         scrollToOffset = viewModel.scrollToOffset,
                         onScrolledToOffset = viewModel::consumeScrollRequest,
+                        softWrap = softWrap,
                     )
                 }
             }
@@ -393,13 +396,19 @@ private fun EditorField(
     currentMatchBackground: Color,
     scrollToOffset: Int?,
     onScrolledToOffset: () -> Unit,
+    softWrap: Boolean,
 ) {
     val placeholder = stringResource(R.string.editor_placeholder)
     // 从主题里取正文样式：行号栏要用同一份量行高，两侧的字体与行距必须完全一致
     val bodyStyle = LocalEditorTextStyle.current
     val scrollState = rememberScrollState()
+    // 关掉软换行时长行会横向溢出，得另配一个横向的 ScrollState——ScrollState 是单轴的，
+    // 两个方向没法共用一个。开着软换行时它不会被挂上去。
+    val hScrollState = rememberScrollState()
     var layoutResult by remember { mutableStateOf<TextLayoutResult?>(null) }
-    var viewportHeight by remember { mutableIntStateOf(0) }
+    // 视口尺寸，两个方向都要：纵向用于把目标行滚进视野，横向用于软换行关掉时把命中处
+    // 从屏幕外拉回来。原本只存了高度，那时还没有横向滚动这回事。
+    var viewport by remember { mutableStateOf(IntSize.Zero) }
 
     val transformation = remember(value.text, tokens, styles, matches, currentMatch) {
         if (tokens.isEmpty() && matches.isEmpty()) {
@@ -443,17 +452,27 @@ private fun EditorField(
     LaunchedEffect(scrollToOffset, layoutResult) {
         val offset = scrollToOffset ?: return@LaunchedEffect
         val layout = layoutResult ?: return@LaunchedEffect
-        val line = layout.getLineForOffset(offset.coerceIn(0, value.text.length))
+        val target = offset.coerceIn(0, value.text.length)
+        val line = layout.getLineForOffset(target)
         val top = layout.getLineTop(line).toInt()
         // 停在视口上三分之一处：正好贴顶的话看不出上下文
-        scrollState.animateScrollTo((top - viewportHeight / 3).coerceAtLeast(0))
+        scrollState.animateScrollTo((top - viewport.height / 3).coerceAtLeast(0))
+        // 关掉软换行时，命中的那一处还可能横向在视野之外，得一并滚过去——否则表现是
+        // 「提示说找到了、也确实跳到了某一行，但那一行里命中在哪就是看不见」。
+        // 开着软换行时一行不会超出宽度，横向滚动条压根没挂上去，也就不该去动它。
+        if (!softWrap) {
+            // getHorizontalPosition 给的是 Float，而 ScrollState.animateScrollTo 只收 Int，
+            // 所以这里先按 Float 算完再取整 —— 顺序反过来会在编译期报类型不符。
+            val x = layout.getHorizontalPosition(target, usePrimaryDirection = true)
+            hScrollState.animateScrollTo((x - viewport.width / 3f).coerceAtLeast(0f).toInt())
+        }
         onScrolledToOffset()
     }
 
     Row(
         Modifier
             .fillMaxSize()
-            .onSizeChanged { viewportHeight = it.height },
+            .onSizeChanged { viewport = it },
     ) {
         LineNumberGutter(
             lineIndex = lineIndex,
@@ -471,6 +490,15 @@ private fun EditorField(
                 .weight(1f)
                 .fillMaxHeight()
                 .padding(horizontal = 8.dp)
+                // 关软换行靠的是**把宽度约束放开成无限**——BasicTextField 没有 softWrap 参数，
+                // 它「折或不折」完全由拿到的宽度决定：宽度有限就折，无限就不折。
+                //
+                // 所以这里**必须条件性地挂**，不能写成 `horizontalScroll(state, enabled = false)`：
+                // 那个 enabled 只管手势，测量阶段照样会把 maxWidth 放开，软换行就永远关不掉了。
+                //
+                // 挂在 padding 内侧还有个好处：滚动节点只放宽 maxWidth、**保留 minWidth**，
+                // 于是文本再短也占满可视宽度，点行尾右边的空白照样能定位光标。
+                .then(if (softWrap) Modifier else Modifier.horizontalScroll(hScrollState))
                 .verticalScroll(scrollState)
                 // 硬件键盘的 Ctrl+Z / Ctrl+Shift+Z / Ctrl+Y。挂在编辑区而不是整页：
                 // 焦点在查找框时按 Ctrl+Z 应该撤销查找框里的输入，不是动正文。

@@ -1,7 +1,7 @@
 #!/usr/bin/env python3
 """多语言资源的一致性检查。改动说明前先跑它。
 
-守着三件靠人记必然记漏的事：
+守着四件靠人记必然记漏的事：
 
 1. **各 `values*/strings.xml` 的键集合必须完全一致**。少了键不会报错 —— 该语言会静默回落到
    兜底英文，界面上是「一页里两句英文夹着」，很难在 review 时看出来。
@@ -9,6 +9,11 @@
    崩掉，或者更糟：参数串位，把行数显示成字符数。
 3. **`locales_config.xml` 与 `values-*` 目录一一对应**。声明了却没资源 = 系统「应用语言」里
    出现选了没反应的假选项；有资源却没声明 = 用户根本选不到这套译文。
+4. **`AppLanguage` 枚举与 `locales_config.xml` 一一对应** —— 这是语言清单的**第三处**
+   （前两处是资源目录与 localeConfig）。枚举里少了某语言，应用内的选择器就选不到它
+   （但系统「应用语言」里能选）；枚举里多了一种、系统里没声明，两处入口给出的可选范围又对不上。
+   用户看到的只是「这里怎么没有那一项」，看不出是配置漏了。
+   新增语言时这里、`values-xx/`、`locales_config.xml` 三处必须一起改。
 
 只往目录里找，不做任何修复。有问题的项全部列出后再以状态码 1 退出。
 
@@ -26,6 +31,8 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parent.parent
 RES = Path(sys.argv[1]).resolve() if len(sys.argv) > 1 else ROOT / "app/src/main/res"
 LOCALES_CONFIG = RES / "xml/locales_config.xml"
+# 语言清单的第三处：应用内选择器渲染的就是这个枚举。
+APP_LANGUAGE = ROOT / "app/src/main/java/com/textnote/app/data/AppLanguage.kt"
 
 # Android 里 `values-` 后面跟着的这些限定符与语言无关。判断某个目录是不是语言变体时排除它们，
 # 免得把 `values-night` 当成某个叫 night 的语言。
@@ -64,6 +71,24 @@ def declared_in_config() -> list[str]:
     root = ET.parse(LOCALES_CONFIG).getroot()
     ns = "{http://schemas.android.com/apk/res/android}"
     return [el.get(f"{ns}name") for el in root.findall("locale")]
+
+
+def declared_in_app() -> list[str]:
+    """从 `AppLanguage` 枚举里读出应用内能选的语言标签。
+
+    枚举项形如 `CHINESE_SIMPLIFIED("zh-Hans", "简体中文"),` —— 缩进 4 空格、名字全大写、
+    后面跟两个字符串字面量。`SYSTEM` 那一项的标签是空串，表示「跟随系统」，不是一种语言，跳过。
+
+    文件不在时跳过这一项：自测可以把资源目录指到别处（见模块 docstring），那时这里本来就查不到。
+    """
+    if not APP_LANGUAGE.is_file():
+        return []
+    text = APP_LANGUAGE.read_text(encoding="utf-8")
+    body = re.search(r"enum class AppLanguage\b.*?\{", text, re.S)
+    if body is None:
+        raise SystemExit(f"{APP_LANGUAGE}: 找不到 `enum class AppLanguage`，脚本与代码对不上了")
+    tags = re.findall(r'^\s{4}[A-Z][A-Z_]*\("([^"]*)"\s*,', text[body.end():], re.M)
+    return [t for t in tags if t]
 
 
 def expected_dir(locale: str) -> str:
@@ -107,6 +132,23 @@ def main() -> int:
     declared = declared_in_config()
     if len(set(declared)) != len(declared):
         problems.append(f"{LOCALES_CONFIG.name} 里有重复的 locale 声明")
+
+    # 语言清单的第三处：应用内选择器。与 localeConfig 双向对齐，否则两处入口给出的可选范围
+    # 不一致，而用户只会觉得「这里怎么少了一项」，看不出是配置漏了。
+    in_app = declared_in_app()
+    if in_app:
+        for locale in declared:
+            if locale not in in_app:
+                problems.append(
+                    f"`{locale}` 在 {LOCALES_CONFIG.name} 里声明了，但 AppLanguage 枚举里没有 —— "
+                    f"应用内的语言选择器选不到它"
+                )
+        for locale in in_app:
+            if locale not in declared:
+                problems.append(
+                    f"AppLanguage 枚举里有 `{locale}`，但 {LOCALES_CONFIG.name} 没声明 —— "
+                    f"系统「应用语言」里选不到"
+                )
 
     for locale in declared:
         if locale not in dirs:
@@ -158,7 +200,7 @@ def main() -> int:
         return 1
 
     summary = "、".join(f"{locale}({len(table)})" for locale, table in tables.items())
-    print(f"✓ {total} 套译文、{keys} 个键、占位符与 localeConfig 全部一致：{summary}")
+    print(f"✓ {total} 套译文、{keys} 个键、占位符一致；语言清单三处对齐：{summary}")
     return 0
 
 

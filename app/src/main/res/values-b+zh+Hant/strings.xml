@@ -62,6 +62,8 @@
     <string name="recent_files">最近開啟</string>
     <string name="recent_needs_permission">授權已失效 — 點擊重新選擇這個檔案</string>
     <string name="remove_from_list">從列表移除</string>
+    <string name="open_in_new_window">在新視窗開啟</string>
+    <string name="already_open_in_a_window">這份檔案已在另一個視窗中開啟</string>
 
     <string name="external_change_modified">這個檔案在其他應用程式裡被修改了</string>
     <string name="external_change_gone">這個檔案已被移動或刪除</string>
@@ -85,4 +87,11 @@
     <string name="font_serif">襯線</string>
     <string name="font_size_label">字型大小</string>
     <string name="line_height_label">行距</string>
+    <string name="soft_wrap_title">自動換行</string>
+    <string name="soft_wrap_desc">長行折行顯示，不橫向捲動</string>
+
+    <string name="settings_language">語言</string>
+    <string name="language_app">介面語言</string>
+    <string name="language_system">跟隨系統</string>
+    <string name="done">完成</string>
 </resources>

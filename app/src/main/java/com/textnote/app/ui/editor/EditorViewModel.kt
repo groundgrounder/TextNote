@@ -192,7 +192,14 @@ class EditorViewModel(
     val highlightSuppressed: Boolean
         get() = !readOnly && syntax.id != Syntax.PLAIN.id && this.field.text.length > HIGHLIGHT_LIMIT
 
-    private var currentUri: Uri? = null
+    /**
+     * 当前文档的 Uri。
+     *
+     * 对外可读：界面要拿它登记「本窗口正在显示哪份文档」，多窗口去重靠这张表
+     * （见 `MainActivity` 的 `OpenDocumentRegistry`）。写入仍然只由本类负责。
+     */
+    var currentUri: Uri? by mutableStateOf(null)
+        private set
     private var draftJob: Job? = null
 
     /**

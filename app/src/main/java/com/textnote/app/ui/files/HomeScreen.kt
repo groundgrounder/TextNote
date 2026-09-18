@@ -1,7 +1,9 @@
 package com.textnote.app.ui.files
 
-import androidx.compose.foundation.clickable
+import androidx.compose.foundation.ExperimentalFoundationApi
+import androidx.compose.foundation.combinedClickable
 import androidx.compose.foundation.layout.Arrangement
+import androidx.compose.foundation.layout.Box
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.PaddingValues
 import androidx.compose.foundation.layout.Row
@@ -14,6 +16,8 @@ import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.outlined.Settings
 import androidx.compose.material.icons.outlined.Close
 import androidx.compose.material3.Button
+import androidx.compose.material3.DropdownMenu
+import androidx.compose.material3.DropdownMenuItem
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -24,7 +28,10 @@ import androidx.compose.material3.Surface
 import androidx.compose.material3.TopAppBar
 import androidx.compose.material3.Text
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
 import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
 import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.stringResource
@@ -34,6 +41,7 @@ import com.textnote.app.R
 import com.textnote.app.data.DocumentMeta
 import com.textnote.app.data.DraftMeta
 import com.textnote.app.data.DraftStore
+import com.textnote.app.ui.theme.readableWidth
 
 /** 草稿离自动清理还剩多少天之内才提醒。太早说等于噪音，太晚说等于没说。 */
 private const val EXPIRY_HINT_DAYS = 7
@@ -56,6 +64,7 @@ fun HomeScreen(
     onSettingsClick: () -> Unit,
     onRecentClick: (DocumentMeta) -> Unit,
     onRecentRemove: (DocumentMeta) -> Unit,
+    onOpenInNewWindow: (DocumentMeta) -> Unit,
     onDraftClick: (DraftMeta) -> Unit,
 ) {
     Scaffold(
@@ -76,7 +85,10 @@ fun HomeScreen(
         LazyColumn(
             modifier = Modifier
                 .fillMaxSize()
-                .padding(padding),
+                .padding(padding)
+                // 宽屏上把列表收进一栏居中。不收的话列表项会横跨整屏（实测 1250dp），
+                // 文件名与右侧的关闭按钮被扯到屏幕两头。
+                .readableWidth(),
             contentPadding = PaddingValues(horizontal = 16.dp, vertical = 12.dp),
             verticalArrangement = Arrangement.spacedBy(8.dp),
         ) {
@@ -114,6 +126,9 @@ fun HomeScreen(
                         time = formatTime(meta.openedAt),
                         onClick = { onRecentClick(meta) },
                         onRemove = { onRecentRemove(meta) },
+                        // 草稿那一列不开放这个入口：草稿的意思是「这份文件还有没写回去的改动」，
+                        // 在新窗口里打开的却是磁盘上的原文件、还会再弹一次草稿横幅，只会让人困惑。
+                        onOpenInNewWindow = { onOpenInNewWindow(meta) },
                     )
                 }
             }
@@ -148,8 +163,9 @@ private fun RecentRow(
     time: String,
     onClick: () -> Unit,
     onRemove: () -> Unit,
+    onOpenInNewWindow: () -> Unit,
 ) {
-    ItemCard(onClick = onClick) {
+    ItemCard(onClick = onClick, onOpenInNewWindow = onOpenInNewWindow) {
         Column(Modifier.weight(1f)) {
             Text(
                 text = meta.name,
@@ -241,24 +257,46 @@ private fun DraftRow(
 /**
  * 列表项外壳。右侧控件区用 `end = 4.dp` 收窄——IconButton 自带 48dp 触控区，
  * 留 12dp 会让图标看起来缩在中间。
+ *
+ * 长按出菜单（[onOpenInNewWindow] 为 null 时不挂长按）。`Surface` 没有带长按的重载，
+ * 所以用 [combinedClickable]——长按判定它自己处理，不用再叠一层手势。
  */
+@OptIn(ExperimentalFoundationApi::class)
 @Composable
 private fun ItemCard(
     onClick: () -> Unit,
+    onOpenInNewWindow: (() -> Unit)? = null,
     content: @Composable androidx.compose.foundation.layout.RowScope.() -> Unit,
 ) {
-    Surface(
-        tonalElevation = 1.dp,
-        shape = MaterialTheme.shapes.small,
-        modifier = Modifier.fillMaxWidth(),
-    ) {
-        Row(
-            modifier = Modifier
-                .clickable(onClick = onClick)
-                .padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
-            verticalAlignment = Alignment.CenterVertically,
+    var menuOpen by remember { mutableStateOf(false) }
+    Box {
+        Surface(
+            tonalElevation = 1.dp,
+            shape = MaterialTheme.shapes.small,
+            modifier = Modifier.fillMaxWidth(),
         ) {
-            content()
+            Row(
+                modifier = Modifier
+                    .combinedClickable(
+                        onClick = onClick,
+                        onLongClick = onOpenInNewWindow?.let { { menuOpen = true } },
+                    )
+                    .padding(start = 12.dp, end = 4.dp, top = 8.dp, bottom = 8.dp),
+                verticalAlignment = Alignment.CenterVertically,
+            ) {
+                content()
+            }
+        }
+        if (onOpenInNewWindow != null) {
+            DropdownMenu(expanded = menuOpen, onDismissRequest = { menuOpen = false }) {
+                DropdownMenuItem(
+                    text = { Text(stringResource(R.string.open_in_new_window)) },
+                    onClick = {
+                        menuOpen = false
+                        onOpenInNewWindow()
+                    },
+                )
+            }
         }
     }
 }
