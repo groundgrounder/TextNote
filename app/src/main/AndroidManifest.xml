@@ -30,17 +30,95 @@
                 <category android:name="android.intent.category.LAUNCHER" />
             </intent-filter>
 
-            <!-- 用 MIME 类型匹配：content / file 协议 -->
+            <!--
+                一、按 MIME 匹配。这是**主要通路**：系统的文件管理器与「打开方式」绝大多数
+                先看 MIME，而 MediaStore 的 Uri 里根本没有文件名（是 `.../file/123`），
+                扩展名规则对它完全无效。
+                `text/*` 一条就覆盖了所有系统认得出是文本的扩展名（.md/.html/.js/.py/.csv/.log…）；
+                下面那些 application/* 是「内容其实是文本、但系统不归到 text 下」的一批。
+            -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <action android:name="android.intent.action.EDIT" />
                 <category android:name="android.intent.category.DEFAULT" />
                 <data android:scheme="content" />
                 <data android:scheme="file" />
-                <data android:mimeType="text/plain" />
+                <data android:mimeType="text/*" />
+                <data android:mimeType="application/json" />
+                <data android:mimeType="application/xml" />
+                <data android:mimeType="application/javascript" />
+                <data android:mimeType="application/x-javascript" />
+                <data android:mimeType="application/sql" />
+                <data android:mimeType="application/toml" />
+                <data android:mimeType="application/yaml" />
+                <data android:mimeType="application/x-yaml" />
+                <data android:mimeType="application/graphql" />
+                <data android:mimeType="application/x-httpd-php" />
+                <data android:mimeType="application/x-sh" />
+                <data android:mimeType="application/x-shellscript" />
+                <data android:mimeType="application/x-python" />
+                <data android:mimeType="application/x-ruby" />
+                <data android:mimeType="application/x-perl" />
+                <data android:mimeType="application/x-lua" />
+                <data android:mimeType="application/x-tex" />
+                <data android:mimeType="application/x-ndjson" />
             </intent-filter>
 
-            <!-- 用扩展名兜底：部分文件管理器不给 MIME 类型 -->
+            <!--
+                二、分享文件（`ACTION_SEND`）。很多应用**只提供分享、不提供「打开方式」**
+                ——邮件附件、聊天里收到的文件、下载管理器、云盘客户端。
+
+                ⚠️ **必须单独一条过滤器**，不能把 `<action SEND>` 加进上面那条：SEND 的 intent
+                没有 data（被分享的 Uri 在 `EXTRA_STREAM` 里，按惯例 `getData()` 是空的），
+                而上面那条声明了 scheme——**声明了 scheme 的过滤器匹配不上「没有 data」的 intent**。
+
+                MIME 清单与上面那条刻意保持同一份：SEND 的 Uri 不在 intent 的 data 上，
+                `pathPattern` 这条兜底路径**拿不到它**，所以这里只有 MIME 一条路。
+                代价是「内容认不出来、被报成 `application/octet-stream` 的文件」（很多文件管理器
+                对不认识的扩展名就是这么报的）**不会出现在分享面板里**——不列 `*/*` 是刻意的：
+                收了它，照片、视频、APK 的分享列表里也会冒出 TextNote，点进去一片乱码。
+                加类型时两条清单一起改。
+            -->
+            <intent-filter>
+                <action android:name="android.intent.action.SEND" />
+                <category android:name="android.intent.category.DEFAULT" />
+                <data android:mimeType="text/*" />
+                <data android:mimeType="application/json" />
+                <data android:mimeType="application/xml" />
+                <data android:mimeType="application/javascript" />
+                <data android:mimeType="application/x-javascript" />
+                <data android:mimeType="application/sql" />
+                <data android:mimeType="application/toml" />
+                <data android:mimeType="application/yaml" />
+                <data android:mimeType="application/x-yaml" />
+                <data android:mimeType="application/graphql" />
+                <data android:mimeType="application/x-httpd-php" />
+                <data android:mimeType="application/x-sh" />
+                <data android:mimeType="application/x-shellscript" />
+                <data android:mimeType="application/x-python" />
+                <data android:mimeType="application/x-ruby" />
+                <data android:mimeType="application/x-perl" />
+                <data android:mimeType="application/x-lua" />
+                <data android:mimeType="application/x-tex" />
+                <data android:mimeType="application/x-ndjson" />
+            </intent-filter>
+
+            <!--
+                三、按扩展名兜底：部分文件管理器不给 MIME（只报 `*/*` 或 octet-stream），
+                这时唯一能用的线索就是路径里的扩展名。
+
+                清单是**手写列举**而不是「带点的都算」（`pathPattern=".*\\..*"` 一行就写完）：
+                后者会让 TextNote 出现在 PNG / APK / MP4 的「打开方式」里，点进去只有乱码。
+
+                ⚠️ **不要改用 `android:pathAdvancedPattern`**。它（API 31+）表面上能用 `(?i)`
+                一次覆盖大小写，但实测在 emulator API 36 上**完全不命中**：
+                把 `<data android:pathAdvancedPattern=".*\\.rst" />` 编进 APK 后确认属性真的在
+                二进制清单里（`aapt2 dump xmltree` 看到 `.*\.rst`，转义正确），
+                `resolve-activity` 查 `file:///sdcard/a.rst` 依旧 `No activity found`，
+                而同一条过滤器里的 `pathPattern` 全都正常命中。写了它只会让人以为大小写无关。
+                大写扩展名由上面的 MIME 通路覆盖——系统取 MIME 时会先把扩展名转小写，
+                `A.TXT` 报出来的就是 `text/plain`。
+            -->
             <intent-filter>
                 <action android:name="android.intent.action.VIEW" />
                 <action android:name="android.intent.action.EDIT" />
@@ -50,13 +128,97 @@
                 <data android:host="*" />
                 <data android:mimeType="*/*" />
                 <data android:pathPattern=".*\\.txt" />
-                <data android:pathPattern=".*\\.TXT" />
-                <data android:pathPattern=".*\\.md" />
-                <data android:pathPattern=".*\\.MD" />
+                <data android:pathPattern=".*\\.text" />
+                <data android:pathPattern=".*\\.nfo" />
                 <data android:pathPattern=".*\\.log" />
-                <data android:pathPattern=".*\\.LOG" />
+                <data android:pathPattern=".*\\.md" />
+                <data android:pathPattern=".*\\.markdown" />
+                <data android:pathPattern=".*\\.mdown" />
+                <data android:pathPattern=".*\\.mkd" />
+                <data android:pathPattern=".*\\.rst" />
+                <data android:pathPattern=".*\\.adoc" />
                 <data android:pathPattern=".*\\.json" />
-                <data android:pathPattern=".*\\.JSON" />
+                <data android:pathPattern=".*\\.jsonc" />
+                <data android:pathPattern=".*\\.json5" />
+                <data android:pathPattern=".*\\.yaml" />
+                <data android:pathPattern=".*\\.yml" />
+                <data android:pathPattern=".*\\.toml" />
+                <data android:pathPattern=".*\\.ini" />
+                <data android:pathPattern=".*\\.cfg" />
+                <data android:pathPattern=".*\\.conf" />
+                <data android:pathPattern=".*\\.config" />
+                <data android:pathPattern=".*\\.properties" />
+                <data android:pathPattern=".*\\.env" />
+                <data android:pathPattern=".*\\.csv" />
+                <data android:pathPattern=".*\\.tsv" />
+                <data android:pathPattern=".*\\.htm" />
+                <data android:pathPattern=".*\\.html" />
+                <data android:pathPattern=".*\\.xhtml" />
+                <data android:pathPattern=".*\\.xml" />
+                <data android:pathPattern=".*\\.svg" />
+                <data android:pathPattern=".*\\.vue" />
+                <data android:pathPattern=".*\\.css" />
+                <data android:pathPattern=".*\\.scss" />
+                <data android:pathPattern=".*\\.less" />
+                <data android:pathPattern=".*\\.sass" />
+                <data android:pathPattern=".*\\.js" />
+                <data android:pathPattern=".*\\.mjs" />
+                <data android:pathPattern=".*\\.cjs" />
+                <data android:pathPattern=".*\\.jsx" />
+                <data android:pathPattern=".*\\.ts" />
+                <data android:pathPattern=".*\\.tsx" />
+                <data android:pathPattern=".*\\.py" />
+                <data android:pathPattern=".*\\.pyw" />
+                <data android:pathPattern=".*\\.pyi" />
+                <data android:pathPattern=".*\\.kt" />
+                <data android:pathPattern=".*\\.kts" />
+                <data android:pathPattern=".*\\.java" />
+                <data android:pathPattern=".*\\.c" />
+                <data android:pathPattern=".*\\.h" />
+                <data android:pathPattern=".*\\.cpp" />
+                <data android:pathPattern=".*\\.hpp" />
+                <data android:pathPattern=".*\\.cc" />
+                <data android:pathPattern=".*\\.hh" />
+                <data android:pathPattern=".*\\.cxx" />
+                <data android:pathPattern=".*\\.go" />
+                <data android:pathPattern=".*\\.rs" />
+                <data android:pathPattern=".*\\.swift" />
+                <data android:pathPattern=".*\\.cs" />
+                <data android:pathPattern=".*\\.php" />
+                <data android:pathPattern=".*\\.rb" />
+                <data android:pathPattern=".*\\.rake" />
+                <data android:pathPattern=".*\\.lua" />
+                <data android:pathPattern=".*\\.pl" />
+                <data android:pathPattern=".*\\.pm" />
+                <data android:pathPattern=".*\\.sh" />
+                <data android:pathPattern=".*\\.bash" />
+                <data android:pathPattern=".*\\.zsh" />
+                <data android:pathPattern=".*\\.fish" />
+                <data android:pathPattern=".*\\.ksh" />
+                <data android:pathPattern=".*\\.sql" />
+                <data android:pathPattern=".*\\.proto" />
+                <data android:pathPattern=".*\\.graphql" />
+                <data android:pathPattern=".*\\.gql" />
+                <data android:pathPattern=".*\\.tf" />
+                <data android:pathPattern=".*\\.tfvars" />
+                <data android:pathPattern=".*\\.hcl" />
+                <data android:pathPattern=".*\\.cmake" />
+                <data android:pathPattern=".*\\.mk" />
+                <data android:pathPattern=".*\\.mak" />
+                <data android:pathPattern=".*\\.dart" />
+                <data android:pathPattern=".*\\.scala" />
+                <data android:pathPattern=".*\\.ps1" />
+                <data android:pathPattern=".*\\.psm1" />
+                <data android:pathPattern=".*\\.hs" />
+                <data android:pathPattern=".*\\.lhs" />
+                <data android:pathPattern=".*\\.diff" />
+                <data android:pathPattern=".*\\.patch" />
+                <data android:pathPattern=".*\\.rej" />
+                <data android:pathPattern=".*Dockerfile" />
+                <data android:pathPattern=".*dockerfile" />
+                <data android:pathPattern=".*Makefile" />
+                <data android:pathPattern=".*makefile" />
+                <data android:pathPattern=".*CMakeLists\\.txt" />
             </intent-filter>
         </activity>
     </application>

@@ -31,6 +31,24 @@
     <string name="document_too_large_message">這個檔案大於 %1$s，超過了能讀進記憶體的上限（%2$s）。</string>
     <string name="document_too_large_reason">TextNote 要把整份檔案讀進記憶體才能顯示，超過這個大小開啟會讓應用程式記憶體不足。用其他工具把它拆小之後再開啟。</string>
     <string name="document_too_large_back">選擇其他檔案</string>
+    <string name="document_not_text_title">這不是文字檔</string>
+    <string name="document_not_text_message">檔案內容不像文字——裡面有 NUL 位元組之類的二進位資料，用文字編輯器開啟只會是一堆亂碼。</string>
+    <string name="document_not_text_hint">如果它其實是文字（例如沒有 BOM 的 UTF-16），先轉成 UTF-8 再開啟。</string>
+    <string name="document_not_text_back">選擇其他檔案</string>
+
+    <string name="diagnostics_count">問題 · %1$d</string>
+    <string name="diagnostics_desc">問題：%1$d。點擊跳到下一個。</string>
+    <string name="diagnostic_at_line">第 %1$d 行：%2$s</string>
+    <string name="diag_expected_value">這裡應該是 JSON 值，實際是「%1$s」</string>
+    <string name="diag_expected_colon">鍵後面缺少冒號「:」</string>
+    <string name="diag_expected_comma">兩項之間缺少逗號「,」</string>
+    <string name="diag_expected_end">頂層只能有一個值</string>
+    <string name="diag_unclosed_string">字串沒有閉合</string>
+    <string name="diag_unclosed_bracket">「%1$s」沒有對應的閉合符號</string>
+    <string name="diag_bad_escape">「%1$s」不是合法的轉義</string>
+    <string name="diag_trailing_comma">多了一個逗號</string>
+    <string name="diag_duplicate_key">重複的鍵「%1$s」</string>
+    <string name="diag_too_deep">嵌套太深</string>
     <string name="document_read_only">唯讀瀏覽：%1$d 字元，超過可編輯上限（%2$s），可以閱讀和搜尋，但不能輸入</string>
     <string name="document_slow">檔案較大（%1$d 字元），輸入可能卡頓</string>
     <string name="readonly_line_truncated">⋯ 本行共 %1$d 字元，已截斷</string>

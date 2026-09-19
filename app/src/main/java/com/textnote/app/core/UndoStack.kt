@@ -30,7 +30,8 @@ data class UndoOutcome(val text: String, val caret: Int)
  * 不合并的话，打一句 20 个字的话就要按 20 次撤销才能退回去——用户期望的是「撤销这句话」。
  * 所以相邻的同类改动（连续输入、连续退格）会被并成一个条目。
  *
- * 合并只认**纯插入接纯插入**、**纯删除接纯删除**这两种，且位置必须首尾相接。
+ * 合并只认三种形状：纯插入接纯插入、纯删除接纯删除。后者分「连按退格」与「连按 Delete」
+ * 两种情形，拼接方向相反，所以是两条分支而不是一条（见 [tryMerge]）。
  * 「删一个字再打一个字」不合并：那是两次独立的意图，合并之后撤销一次会跳过中间状态。
  *
  * 时间也参与判断：隔了 [coalesceMs] 以上就不合并。人打字时会有思考停顿，
@@ -233,9 +234,14 @@ class UndoStack @JvmOverloads constructor(
         /**
          * 两条改动能否并成一条。
          *
-         * 两种可并的情况都要求**首尾相接**，中间不能隔着别的内容：
+         * 三种可并的情况都要求**首尾相接**，中间不能隔着别的内容：
          * - 纯插入接纯插入：新插入的位置正好在上一条插入内容的末尾；
-         * - 纯删除接纯删除（连按退格）：新删掉的内容正好挨在上一条删除位置之前。
+         * - 纯删除接纯删除（连按退格）：新删掉的内容正好挨在上一条删除位置之前；
+         * - 纯删除接纯删除（连按 Delete）：位置不动，新删掉的内容接在已删内容**之后**。
+         *
+         * ⚠️ 后两种的拼接顺序**刚好相反**，别图省事合成一条：
+         * 退格是「先删的在右」（`b`+`c`），前向删除是「先删的在左」（`a`+`b`）。
+         * 顺序写反不会报错，只会在撤销时把文本恢复成倒序——静默损坏正文。
          */
         private fun tryMerge(prev: TextEdit, next: TextEdit): TextEdit? = when {
             prev.removed.isEmpty() && next.removed.isEmpty() &&
@@ -245,6 +251,9 @@ class UndoStack @JvmOverloads constructor(
             prev.inserted.isEmpty() && next.inserted.isEmpty() &&
                 next.start + next.removed.length == prev.start ->
                 TextEdit(next.start, next.removed + prev.removed, "")
+
+            prev.inserted.isEmpty() && next.inserted.isEmpty() && next.start == prev.start ->
+                TextEdit(prev.start, prev.removed + next.removed, "")
 
             else -> null
         }

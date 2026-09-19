@@ -133,10 +133,47 @@ class MainActivity : ComponentActivity() {
     }
 
     private fun handleOpenIntent(intent: Intent?) {
-        val uri = intent?.data ?: return
-        when (intent.action) {
-            Intent.ACTION_VIEW, Intent.ACTION_EDIT -> externalUri = uri
+        when (intent?.action) {
+            Intent.ACTION_VIEW, Intent.ACTION_EDIT -> intent.data?.let { externalUri = it }
+            // 分享进来的是**文件**（`EXTRA_STREAM` 带 Uri），不是文本。拿到 Uri 之后与
+            // 「打开方式」走的是同一条路——所以这里只负责把 Uri 取出来。
+            Intent.ACTION_SEND -> sharedFileUri(intent)?.let { externalUri = it }
         }
+    }
+
+    /**
+     * 从「分享」intent 里取出被分享文件的 Uri。**三个地方都看**，因为发送方各有各的写法。
+     *
+     * 顺序是 **`ClipData` → `EXTRA_STREAM` → `data`**，理由不是「哪个更规范」而是
+     * **哪个能读**：平台的 `FLAG_GRANT_READ_URI_PERMISSION` 只覆盖 intent 的 `data` 与
+     * `clipData` 里的 Uri，**不覆盖 `EXTRA_STREAM`**——所以规范做法是发送方在发出前调
+     * `Intent.migrateExtraStreamToClipData()` 把两者对齐（系统自己也会做一次迁移，
+     * 但迁移只认真正的 `Uri`，塞字符串的那种它不管）。两者不一致时，能读到的几乎总是
+     * clipData 那一份。
+     *
+     * `EXTRA_STREAM` 仍然要读：它就是 SEND 的规范位置，而只认 clipData 的话，
+     * 「只塞了 extra」的发送方会让用户点了分享**毫无反应**——那是比「读不到、给一句
+     * 说明」更糟的失败方式。所以这里认三种形态：
+     * - `Uri`（规范）；
+     * - `String`（历史写法，少数应用仍在用）；
+     * - 以及上面两者都缺时的 `data`。
+     *
+     * 都取不到就什么都不做：**宁可不开，也不要猜**（猜错会拿一个无关的 Uri 去开文档）。
+     *
+     * ⚠️ 取 extra 时走 `extras.get` 而不是 `getParcelableExtra(name, Uri::class.java)`：
+     * 后者在 API 33+ 遇到「发送方塞的是字符串」时会抛 `ClassCastException`（它是转型，不是
+     * 类型检查），那正好是最需要容错的那种输入。`Bundle.get` 在 API 33 起被标记废弃
+     * （官方建议改用带类型的取值器），但那正是这里不能用它的原因——**在拿到值之前
+     * 我们不知道它是什么类型**，只能读原始值再自己判断。
+     */
+    @Suppress("DEPRECATION")
+    private fun sharedFileUri(intent: Intent): Uri? {
+        intent.clipData?.getItemAt(0)?.uri?.let { return it }
+        when (val raw = intent.extras?.get(Intent.EXTRA_STREAM)) {
+            is Uri -> return raw
+            is String -> return Uri.parse(raw).takeIf { it.scheme != null }
+        }
+        return intent.data
     }
 }
 

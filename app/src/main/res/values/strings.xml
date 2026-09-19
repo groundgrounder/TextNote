@@ -31,6 +31,29 @@
     <string name="document_too_large_message">This file is larger than %1$s, over the %2$s that can be read into memory.</string>
     <string name="document_too_large_reason">TextNote reads the whole file into memory to show it, so beyond this size opening it would run the app out of memory. Splitting the file with another tool will let you open it here.</string>
     <string name="document_too_large_back">Pick another file</string>
+    <string name="document_not_text_title">Not a text file</string>
+    <string name="document_not_text_message">This file doesn\'t look like text — it holds binary content such as null bytes. Opening it in a text editor would only show garbage.</string>
+    <string name="document_not_text_hint">If it really is text (a UTF-16 file with no BOM, say), convert it to UTF-8 first and open that.</string>
+    <string name="document_not_text_back">Pick another file</string>
+
+    <!--
+        本地分析（单文件）的诊断文案。
+        「种类 → 文案」的映射在 ui/editor/EditorChrome.kt（`diagnosticMessage`）——core/ 只给种类，
+        因为那里是纯 Kotlin、碰不到资源，而这四套语言必须一起走。
+    -->
+    <string name="diagnostics_count">Problems · %1$d</string>
+    <string name="diagnostics_desc">Problems: %1$d. Tap to jump to the next.</string>
+    <string name="diagnostic_at_line">Line %1$d: %2$s</string>
+    <string name="diag_expected_value">Expected a JSON value, found «%1$s»</string>
+    <string name="diag_expected_colon">Expected «:» after the key</string>
+    <string name="diag_expected_comma">Expected «,» between entries</string>
+    <string name="diag_expected_end">Only one top-level value is allowed</string>
+    <string name="diag_unclosed_string">Unterminated string</string>
+    <string name="diag_unclosed_bracket">«%1$s» is never closed</string>
+    <string name="diag_bad_escape">«%1$s» is not a valid escape</string>
+    <string name="diag_trailing_comma">Trailing comma</string>
+    <string name="diag_duplicate_key">Duplicate key «%1$s»</string>
+    <string name="diag_too_deep">Nested too deeply</string>
     <string name="document_read_only">Read-only — %1$d chars is past the %2$s editable limit, so you can read and search but not type</string>
     <string name="document_slow">Large file (%1$d chars) — typing may lag</string>
     <string name="readonly_line_truncated">⋯ %1$d chars on this line, truncated</string>

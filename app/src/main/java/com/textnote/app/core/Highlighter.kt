@@ -17,14 +17,14 @@ package com.textnote.app.core
  *
  * ## 语言差异的处理
  *
- * 三条专用分支（[scanCodeLine] / [scanMarkupLine] / [scanMarkdownLine]）+ 一堆开关。
- * 专用分支之间是「整套替换」而不是打补丁，因为标记语言和 Markdown 的行结构和代码完全不同，
+ * 四条专用分支（[scanCodeLine] / [scanMarkupLine] / [scanMarkdownLine] / [scanDiffLine]）+ 一堆开关。
+ * 专用分支之间是「整套替换」而不是打补丁，因为标记语言、Markdown 与补丁的行结构完全不同，
  * 混在一个循环里只会互相干扰。
  *
  * ## 本文件只留入口与分发
  *
  * 三个扫描件已按职责分到另外两个文件：共用件（引号串 / 数字 / 标识符 / 行首状态常量）在
- * [HighlighterPrimitives]，三条语法分支在 [HighlighterGrammars]。这里只剩
+ * [HighlighterPrimitives]，四条语法分支在 [HighlighterGrammars]。这里只剩
  * [highlight] / [lineStates] / [highlightLine] 与把它们分派到对应分支的 [scanOneLine]。
  */
 object Highlighter {
@@ -112,8 +112,8 @@ object Highlighter {
         return out
     }
 
-    /** 按语言选扫描分支。三种行结构没有共同点，所以这里是「整套替换」而不是打补丁 */
-internal fun scanOneLine(
+    /** 按语言选扫描分支。四种行结构没有共同点，所以这里是「整套替换」而不是打补丁 */
+    internal fun scanOneLine(
         text: String,
         start: Int,
         end: Int,
@@ -121,6 +121,7 @@ internal fun scanOneLine(
         stateIn: Int,
         out: MutableList<HighlightToken>,
     ): Int = when {
+        syntax.diff -> scanDiffLine(text, start, end, syntax, stateIn, out)
         syntax.markdown -> scanMarkdownLine(text, start, end, syntax, stateIn, out)
         syntax.markup -> scanMarkupLine(text, start, end, syntax, stateIn, out)
         else -> scanCodeLine(text, start, end, syntax, stateIn, out)

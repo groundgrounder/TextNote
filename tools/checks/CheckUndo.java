@@ -28,6 +28,8 @@ public class CheckUndo {
         roundTrip();
         coalesceTyping();
         coalesceBackspace();
+        coalesceForwardDelete();
+        deleteDirectionsAreNotMixed();
         noCoalesceAcrossKinds();
         noCoalesceAfterPause();
         noCoalesceWhenDisabled();
@@ -133,6 +135,40 @@ public class CheckUndo {
 
         UndoOutcome u = s.undo("a");
         check("一次撤销恢复整段删除", u != null && u.getText().equals("abc"));
+    }
+
+    /**
+     * 连按 **Delete**（前向删除）：位置不动，新删掉的内容接在已删内容之后。
+     *
+     * 与退格那一条是两回事——退格是「先删的在右」，前向删除是「先删的在左」，
+     * 拼接顺序相反。少一条分支的症状是「连按 20 次 Delete 要按 20 次撤销」，
+     * 顺序写反的症状更严重：撤销会把文本恢复成**倒序**（静默损坏正文）。
+     */
+    static void coalesceForwardDelete() {
+        UndoStack s = new UndoStack();
+        s.record("abc", "bc", 0L);
+        s.record("bc", "c", 10L);
+        check("连续 Delete 合并成 1 步", s.getUndoDepth() == 1);
+
+        UndoOutcome u = s.undo("c");
+        check("一次撤销恢复两个字符", u != null && u.getText().equals("abc"));
+        // 顺序断言不能省：只比长度的话 `cb` 也算过
+        check("恢复的是原顺序而不是倒序", u != null && u.getText().equals("abc"));
+    }
+
+    /** 前向删除与退格的**方向**都必须对：同一份文本，两种删法各自撤回到原文 */
+    static void deleteDirectionsAreNotMixed() {
+        UndoStack back = new UndoStack();
+        back.record("abcdef", "abcde", 0L);
+        back.record("abcde", "abcd", 10L);
+        UndoOutcome b = back.undo("abcd");
+        check("退格方向：撤销回到 abcdef", b != null && b.getText().equals("abcdef"));
+
+        UndoStack fwd = new UndoStack();
+        fwd.record("abcdef", "bcdef", 0L);
+        fwd.record("bcdef", "cdef", 10L);
+        UndoOutcome f = fwd.undo("cdef");
+        check("前向方向：撤销回到 abcdef", f != null && f.getText().equals("abcdef"));
     }
 
     /** 删一个字再打一个字是两次意图，不能并成一步 */

@@ -1,7 +1,6 @@
 package com.textnote.app.data
 
 import android.content.Context
-import android.net.Uri
 import com.textnote.app.core.LineEnding
 import org.json.JSONArray
 import org.json.JSONObject

@@ -21,10 +21,17 @@ look, save it, and not one byte should have changed.
   are detected on read and preserved on write; mixed endings are reported
 - **Editing**: undo/redo with input coalescing, find and replace (regex / case / whole word /
   `$1` templates), `Ctrl+Z` and friends
-- **Syntax highlighting**: 15 languages, picked by file extension, overridable per file and
-  remembered
+- **Syntax highlighting**: 34 languages, picked by file **name** — the whole name first
+  (`Makefile`, `Dockerfile`, `CMakeLists.txt`, `.gitignore`), then the extension — overridable
+  per file and remembered. Patches (`.diff` / `.patch` / `.rej`) are coloured by line prefix,
+  so the added and removed blocks stand out
 - **Large files**: past 200k characters a file switches to **read-only browsing**; past 4 MB it
   refuses to open rather than blow up memory
+- **Text only, deliberately**: a file that isn't text (null bytes, mostly control characters) is
+  refused with an explanation instead of being shown as a screen of garbage
+- **Local checks**: JSON is validated as you type — the first syntax error is marked in place, the
+  status bar shows the problem count and tapping it jumps there and says what's wrong.
+  `.jsonc` / `.json5` are checked leniently (comments and trailing commas allowed)
 - **Nothing gets lost**: a draft is flushed the moment the app goes to the background; it only
   asks "restore / discard" when the draft actually differs from the file, and external changes
   are announced rather than applied behind your back
@@ -39,14 +46,22 @@ Grab the latest APK (`TextNote-vX.Y.Z.apk`) from
 ## Usage
 
 - **Open file** goes through the system file picker; **New file** starts from scratch
-- `.txt` / `.md` / `.log` / `.json` can also be opened straight from a file manager — just pick
-  TextNote
+- Text files can also be opened straight from a file manager: matching is by MIME
+  (`text/*` plus a set of `application/*` types), with a long list of source and config
+  extensions as a fallback
 - No storage permission is requested: every read and write goes through the picker's grant
 
 ## Known limits (deliberate trade-offs)
 
 - Past 200k characters a file becomes read-only (a hand-rolled kernel of sora-editor's caliber
   is out of scope); no Markdown preview
+- Highlighting is a **line-by-line approximation**, not a compiler front end: nested block
+  comments, Rust raw strings `r#"…"#` and Ruby / Shell heredocs are not parsed — a multi-line
+  construct is recognised as one opening delimiter plus one closing delimiter
+- "Is this text?" is judged on the **decoded** content, so UTF-16 with a BOM opens fine; UTF-16
+  without a BOM, and a null byte past the first 8000 characters, are the accepted blind spots
+- Checks are **local and single-file** (JSON only so far): there is no language server, so no
+  completion, hover or go-to-definition, and no project-wide analysis
 - No bundled fonts — only the three system families; columns are counted in UTF-16 code units,
   so an emoji takes two
 - Big5 is not detected separately: GB18030 covers its encoding space, and fidelity holds as long

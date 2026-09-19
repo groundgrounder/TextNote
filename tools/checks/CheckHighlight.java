@@ -60,7 +60,8 @@ public class CheckHighlight {
         check("a.py -> Python", SyntaxRegistry.INSTANCE.forFileName("a.py").getId().equals("python"));
         check("a.md -> Markdown", SyntaxRegistry.INSTANCE.forFileName("a.md").getId().equals("markdown"));
         check("a.log -> 纯文本", SyntaxRegistry.INSTANCE.forFileName("a.log").getId().equals("txt"));
-        check("无扩展名 -> 纯文本", SyntaxRegistry.INSTANCE.forFileName("Makefile").getId().equals("txt"));
+        // 无扩展名且不在「整名」名单里 → 纯文本。别拿 Makefile 当样本：它现在是一门语法。
+        check("无扩展名 -> 纯文本", SyntaxRegistry.INSTANCE.forFileName("notes").getId().equals("txt"));
         check("未知扩展名 -> 纯文本", SyntaxRegistry.INSTANCE.forFileName("a.weird").getId().equals("txt"));
         check("大写扩展名也能认", SyntaxRegistry.INSTANCE.forFileName("A.KT").getId().equals("kotlin"));
 

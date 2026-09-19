@@ -1,8 +1,8 @@
 package com.textnote.app.core
 
 /**
- * 三条语法分支的**逐行扫描器**：代码（[scanCodeLine]）、标记语言（[scanMarkupLine]）、
- * Markdown（[scanMarkdownLine]）。
+ * 四条语法分支的**逐行扫描器**：代码（[scanCodeLine]）、标记语言（[scanMarkupLine]）、
+ * Markdown（[scanMarkdownLine]）、补丁（[scanDiffLine]）。
  *
  * 彼此之间是「整套替换」而不是打补丁——标记语言与 Markdown 的行结构和代码完全不同，
  * 混在一个循环里只会互相干扰（推导见 [Highlighter] 的文件注释）。
@@ -56,10 +56,9 @@ internal fun scanCodeLine(
         // ---- 普通代码 ----
         val c = text[i]
         val line = syntax.lineComment
-        if (line != null && regionStartsWith(text, line, i, end)) {
-            out += HighlightToken(i, end, TokenKind.COMMENT)
-            return ST_NORMAL
-        }
+        // **块注释必须排在行注释之前**：Lua 的行注释 `--` 是块注释 `--[[` 的前缀，
+        // 反过来先试行注释的话，`--[[ ... ]]` 永远只会被标成「这一行是注释」，
+        // 后面几行照常着色。两个检查互斥（`/*` 与 `//` 没有前缀关系），所以换序安全。
         if (block != null && regionStartsWith(text, block.first, i, end)) {
             val closeIdx = indexOfWithin(text, block.second, i + block.first.length, end)
             if (closeIdx < 0) {
@@ -70,6 +69,10 @@ internal fun scanCodeLine(
             out += HighlightToken(i, stop, TokenKind.COMMENT)
             i = stop
             continue
+        }
+        if (line != null && regionStartsWith(text, line, i, end)) {
+            out += HighlightToken(i, end, TokenKind.COMMENT)
+            return ST_NORMAL
         }
         val verbatim = verbatimOpenAt(syntax, text, i, end)
         if (verbatim != null) {
@@ -186,6 +189,17 @@ internal fun scanMarkupLine(
 
 // ==================== Markdown ====================
 
+/**
+ * Markdown 的逐行扫描器。
+ *
+ * `syntax` 在这里**一次都没被读**：Markdown 的构造（`#` 标题、``` 围栏、`*` 强调）全是固定记号，
+ * 没有可配置项。留着这个形参是为了让 [Highlighter.scanOneLine] 保持四路统一分发——
+ * 去掉它，分发处就得为每个分支单写一套实参，而三条分支里只有这一条不需要它。
+ *
+ * ⚠️ 那个 `@Suppress` 不只是给编译器看的，`tools/dead_code.py` 也靠它区分
+ * 「刻意不读」和「漏删」——删掉它会立刻变成一处扫描告警。
+ */
+@Suppress("UNUSED_PARAMETER")
 internal fun scanMarkdownLine(
     text: String,
     start: Int,
@@ -289,6 +303,93 @@ internal fun listMarkerEnd(text: String, i: Int, end: Int): Int {
         return minOf(end, j + 1)
     }
     return minOf(end, i + 1)
+}
+
+// ==================== 补丁（diff / patch） ====================
+
+/**
+ * 补丁文件里的元信息行前缀（`diff --git …`、`index abc..def`、`rename from …`…）。
+ *
+ * 一次前缀匹配就能定整行，所以用「以什么开头」而不是逐字符扫描——补丁的行语义本来就是
+ * 行首决定的（见 [Syntax.diff]）。
+ */
+private val DIFF_META_PREFIXES = listOf(
+    "diff ",
+    "index ",
+    "Index: ",
+    "old mode ",
+    "new mode ",
+    "new file mode ",
+    "deleted file mode ",
+    "similarity index ",
+    "dissimilarity index ",
+    "rename from ",
+    "rename to ",
+    "copy from ",
+    "copy to ",
+    "Binary files ",
+    "GIT binary patch",
+    "*** ",
+)
+
+/**
+ * 补丁（unified diff）的逐行扫描器。
+ *
+ * 整行一个 token，不做行内二次分词：一份补丁要的是「一眼看出增删块在哪」，
+ * 把行内的关键字也染上色反而会把增删的边界淹掉。
+ *
+ * ## 判定顺序是这里唯一的难点
+ *
+ * `+` / `-` 既可能是「新增 / 删除」，也可能是块位置的 `@@ -12,7 +12,9 @@`，
+ * 还可能是文件头的 `--- a/x` / `+++ b/x`。所以顺序必须是**长前缀优先**：
+ * 先 `@@`，再 `---` / `+++`，最后才是单字符的 `+` / `-`。
+ *
+ * ## 一处已知近似
+ *
+ * `--- ` 既是「旧文件路径」也可能是「一行内容以 `--` 开头的删除行」（Lua / SQL / Haskell
+ * 里的注释就是 `--`，删掉它就正好长这样）。逐行扫描看不到上下文，分不出两者，
+ * 这里统一按文件头色处理：**颜色不会丢，只是用了元信息色而不是删除色**。
+ * 一份补丁里这种行远少于真正的增删行，换一套跨行状态机不值得。
+ *
+ * 上下文行（以空格开头）**不着色**：它们就是没改动的原文，保持正文色才突出增删。
+ *
+ * ## 为什么有 `@Suppress("UNUSED_PARAMETER")`
+ *
+ * 补丁没有跨行构造（不像块注释 / 原样字符串），每行独立判定、返回状态永远是 NORMAL，
+ * 所以 `syntax` 与 `stateIn` 在这条分支上都不被读。它们留着是为了与另外三条分支**共用签名**，
+ * 让 [Highlighter.scanOneLine] 保持四路统一分发。这个标注同时是 `tools/dead_code.py`
+ * 区分「刻意不读」与「漏删」的依据——要删它请连形参一起删。
+ */
+@Suppress("UNUSED_PARAMETER")
+internal fun scanDiffLine(
+    text: String,
+    start: Int,
+    end: Int,
+    syntax: Syntax,
+    stateIn: Int,
+    out: MutableList<HighlightToken>,
+): Int {
+    // 补丁没有跨行构造（不像块注释 / 原样字符串），每行独立判定，返回状态永远是 NORMAL
+    val kind = diffKindAt(text, start, end) ?: return ST_NORMAL
+    out += HighlightToken(start, end, kind)
+    return ST_NORMAL
+}
+
+/** 这一行在补丁里是什么角色；认不出（上下文行 / 空行）返回 null */
+private fun diffKindAt(text: String, start: Int, end: Int): TokenKind? {
+    val c = text[start]
+    // 长前缀优先：`@@` `---` `+++` 都比单字符的 `+` `-` 更具体
+    if (c == '@' && regionStartsWith(text, "@@", start, end)) return TokenKind.HUNK
+    if (c == '+' && regionStartsWith(text, "+++", start, end)) return TokenKind.META
+    if (c == '-' && regionStartsWith(text, "---", start, end)) return TokenKind.META
+    // `\ No newline at end of file`：补丁自己的控制行，不是文件内容
+    if (c == '\\') return TokenKind.META
+    if (c == '+') return TokenKind.INSERTED
+    if (c == '-') return TokenKind.DELETED
+    for (prefix in DIFF_META_PREFIXES) {
+        if (regionStartsWith(text, prefix, start, end)) return TokenKind.META
+    }
+    return null
 }
 
 // ==================== 辅助 ====================

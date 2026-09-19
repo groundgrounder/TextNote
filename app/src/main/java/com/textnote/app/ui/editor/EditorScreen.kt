@@ -54,6 +54,7 @@ import androidx.compose.ui.input.key.key
 import androidx.compose.ui.input.key.onKeyEvent
 import androidx.compose.ui.input.key.type
 import androidx.compose.ui.layout.onSizeChanged
+import androidx.compose.ui.platform.LocalContext
 import androidx.compose.ui.res.stringResource
 import androidx.compose.ui.semantics.contentDescription
 import androidx.compose.ui.text.AnnotatedString
@@ -63,11 +64,14 @@ import androidx.compose.ui.text.input.OffsetMapping
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.compose.ui.text.input.TransformedText
 import androidx.compose.ui.text.input.VisualTransformation
+import androidx.compose.ui.text.style.TextDecoration
 import androidx.compose.ui.text.style.TextOverflow
 import androidx.compose.ui.unit.IntSize
 import androidx.compose.ui.unit.dp
 import androidx.compose.foundation.text.BasicTextField
 import com.textnote.app.R
+import com.textnote.app.core.Diagnostic
+import com.textnote.app.core.DiagnosticSeverity
 import com.textnote.app.core.HighlightToken
 import com.textnote.app.core.LineIndex
 import com.textnote.app.core.SearchMatch
@@ -133,6 +137,18 @@ fun EditorScreen(
     val matchBackground = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.55f)
     val currentMatchBackground = MaterialTheme.colorScheme.tertiary.copy(alpha = 0.45f)
 
+    // 诊断标记：**只加下划线与很淡的底，不改字色**。
+    // 改了字色就把语法色整段覆盖掉了——而诊断要回答的是「哪里有问题」，
+    // 不是「这一行是什么」。底色用半透明，压在语法背景（如果有）之上仍能看出严重级。
+    val errorMark = SpanStyle(
+        textDecoration = TextDecoration.Underline,
+        background = MaterialTheme.colorScheme.errorContainer.copy(alpha = 0.45f),
+    )
+    val warningMark = SpanStyle(
+        textDecoration = TextDecoration.Underline,
+        background = MaterialTheme.colorScheme.tertiaryContainer.copy(alpha = 0.45f),
+    )
+
     // 系统返回键分两级：查找面板开着时先收起它，否则回到首页。
     // 少了前面那一级，面板开着按返回会直接退到首页——面板是浮在文档上的一层，
     // 用户按返回想收起的是它，结果文档一起没了（还要重新打开一次）。
@@ -192,12 +208,9 @@ fun EditorScreen(
                     }
                     IconButton(
                         onClick = viewModel::openSearch,
-                        // 没有可搜的正文时（读不到 / 读不动 / 还在读）不给入口：
+                        // 没有可搜的正文时不给入口（读不到 / 读不动 / 不是文本 / 还在读）：
                         // 搜索面板会显示「0 处命中」，那是在报一份并不存在的文档
-                        enabled = !viewModel.loading &&
-                            !viewModel.search.visible &&
-                            !viewModel.unavailable &&
-                            viewModel.tooLarge == null,
+                        enabled = viewModel.showsText && !viewModel.search.visible,
                     ) {
                         Icon(
                             Icons.Filled.Search,
@@ -212,10 +225,8 @@ fun EditorScreen(
                             }
                         },
                         enabled = viewModel.writable &&
-                            !viewModel.loading &&
-                            !viewModel.readOnly &&
-                            !viewModel.unavailable &&
-                            viewModel.tooLarge == null,
+                            viewModel.showsText &&
+                            !viewModel.readOnly,
                     ) {
                         Icon(Icons.Outlined.Save, contentDescription = stringResource(R.string.save))
                     }
@@ -236,10 +247,7 @@ fun EditorScreen(
                                 text = { Text(stringResource(R.string.save_as)) },
                                 // 只读（文档大得不能编辑）时没有「存到别处」的意义：内容改不了，
                                 // 存出去还是一份只能看的文件。
-                                enabled = !viewModel.readOnly &&
-                                    !viewModel.loading &&
-                                    !viewModel.unavailable &&
-                                    viewModel.tooLarge == null,
+                                enabled = viewModel.showsText && !viewModel.readOnly,
                                 onClick = {
                                     overflow = false
                                     // 拿当前文件名当建议名，用户改个后缀就能换语法
@@ -280,10 +288,29 @@ fun EditorScreen(
                     )
                 }
                 // 没有装载正文时不要显示状态栏：那时它会报「0 字符 · 1 行」这种
-                // 关于一份并不存在的文档的假信息，比空着更糟。三种「没有正文」都要挡住：
-                // 读不动（tooLarge）、读不到（unavailable）、还在读（loading）。
-                if (viewModel.tooLarge == null && !viewModel.unavailable && !viewModel.loading) {
-                    StatusBar(viewModel)
+                // 关于一份并不存在的文档的假信息，比空着更糟。四种「没有正文」都由
+                // `showsText` 一处挡住（读不动 / 读不到 / 不是文本 / 还在读）。
+                if (viewModel.showsText) {
+                    val context = LocalContext.current
+                    StatusBar(
+                        viewModel = viewModel,
+                        onDiagnosticsClick = {
+                            // 跳过去 + 用提示条说一句是什么问题：状态栏放不下消息正文，
+                            // 而只跳过去不说「哪不对」，用户到了地方也不知道该看什么
+                            val target = viewModel.jumpToNextDiagnostic()
+                            if (target != null) {
+                                scope.launch {
+                                    snackbar.showSnackbar(
+                                        diagnosticMessage(
+                                            context,
+                                            target,
+                                            viewModel.lineIndex.lineOf(target.start) + 1,
+                                        ),
+                                    )
+                                }
+                            }
+                        },
+                    )
                 }
             }
         },
@@ -334,6 +361,7 @@ fun EditorScreen(
                         onClose = onClose,
                     )
                     viewModel.unavailable -> UnavailableNotice()
+                    viewModel.notText -> NotTextNotice(onClose = onClose)
                     viewModel.readOnly -> ReadOnlyReader(
                         text = viewModel.field.text,
                         // 与正文同源的那份行索引（`derivedStateOf` 缓存）。不传进来它就得自己
@@ -355,6 +383,9 @@ fun EditorScreen(
                         onRedo = viewModel::redo,
                         lineIndex = viewModel.lineIndex,
                         tokens = viewModel.tokens,
+                        diagnostics = viewModel.diagnostics,
+                        errorMark = errorMark,
+                        warningMark = warningMark,
                         styles = highlightStyles,
                         matches = viewModel.search.matches,
                         currentMatch = viewModel.search.currentIndex,
@@ -389,6 +420,9 @@ private fun EditorField(
     onRedo: () -> Unit,
     lineIndex: LineIndex,
     tokens: List<HighlightToken>,
+    diagnostics: List<Diagnostic>,
+    errorMark: SpanStyle,
+    warningMark: SpanStyle,
     styles: HighlightStyles,
     matches: List<SearchMatch>,
     currentMatch: Int,
@@ -410,14 +444,25 @@ private fun EditorField(
     // 从屏幕外拉回来。原本只存了高度，那时还没有横向滚动这回事。
     var viewport by remember { mutableStateOf(IntSize.Zero) }
 
-    val transformation = remember(value.text, tokens, styles, matches, currentMatch) {
-        if (tokens.isEmpty() && matches.isEmpty()) {
+    val transformation = remember(
+        value.text, tokens, styles, matches, currentMatch, diagnostics, errorMark, warningMark,
+    ) {
+        if (tokens.isEmpty() && matches.isEmpty() && diagnostics.isEmpty()) {
             VisualTransformation.None
         } else {
             val annotated = AnnotatedString.Builder(value.text).apply {
                 tokens.forEach { token -> addStyle(styles[token.kind], token.start, token.end) }
-                // 匹配高亮放在语法色之后叠加。背景与前景色是 SpanStyle 的不同字段，
-                // 叠加不会互相覆盖（上机验证过：命中处仍保留各自语法色）。
+                // 诊断叠在语法色之后：它加的是下划线与底色，**不动字色**，所以两套颜色都留着。
+                //
+                // 诊断是对**上一次分析时的那份正文**算出来的（见 EditorViewModel.diagnostics），
+                // 因此这里必须夹取区间——正文刚改过的那 300ms 里，偏移可能已经越过末尾，
+                // 而越界的 addStyle 会抛异常。与下面命中高亮同一套做法。
+                diagnostics.forEach { d ->
+                    if (d.start >= value.text.length || d.end > value.text.length) return@forEach
+                    addStyle(if (d.severity == DiagnosticSeverity.ERROR) errorMark else warningMark,
+                        d.start, d.end)
+                }
+                // 匹配高亮放在最后：它的底色是「此刻正在找的东西」，该盖住诊断的底色
                 //
                 // 只标一段窗口而不是全部：命中上限一万，全标会把每次编辑都拖垮。
                 // 窗口以**当前命中**为中心而不是从头数——用户按「下一处」往前走，

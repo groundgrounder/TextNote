@@ -10,6 +10,7 @@ import android.provider.OpenableColumns
 import android.system.Os
 import android.text.format.DateFormat
 import com.textnote.app.R
+import com.textnote.app.core.BinarySniff
 import com.textnote.app.core.EditorLimits
 import com.textnote.app.core.LineEnding
 import com.textnote.app.core.LineEndings
@@ -47,6 +48,21 @@ sealed interface OpenResult {
 
     /** 读不到：无权限 / 文件已被移动删除 */
     data object Unavailable : OpenResult
+
+    /**
+     * 读得到，但内容不像文本（二进制）。**不开**，也不给只读浏览。
+     *
+     * 与 [TooLarge] 分开是因为给用户的交代完全不同：那个是「文件太大，换工具或裁剪」，
+     * 这个是「打开它没有意义」——用文本编辑器看一张 PNG，看到的是乱码，而不是图。
+     *
+     * 判据在 [com.textnote.app.core.BinarySniff]，**排在编码探测之后**（那里解释了为什么）。
+     *
+     * ⚠️ 已知后果：被拒时不会走到草稿询问那一步（草稿在读取之后才查），
+     * 所以「文件在别处被写成了二进制、而本地还留着一份文本草稿」这种情况，草稿**暂时取不回来**
+     * （它没有被删，只是没有入口）。要救的话得单独设计一个「这份文件已不是文本，但你有
+     * 未保存的文本版本」的恢复入口，属于另一个决定。
+     */
+    data object NotText : OpenResult
 
     /**
      * 大得读不动，不开。
@@ -131,6 +147,9 @@ class DocumentRepository(private val context: Context) {
                 )
             }
             val decoded = TextEncoding.decode(bytes)
+            // 二进制判据必须在**解码之后**：UTF-16 的 ASCII 文本在字节层满是 0x00，
+            // 判在字节上会把一份正常的 UTF-16 文档拒掉（见 BinarySniff 的文件注释）。
+            if (BinarySniff.looksBinary(decoded.text)) return@runCatching OpenResult.NotText
             val text = LineEndings.normalize(decoded.text)
             OpenResult.Loaded(
                 document = LoadedDocument(

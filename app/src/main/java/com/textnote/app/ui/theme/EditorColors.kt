@@ -73,6 +73,18 @@ private val Light = HighlightStyles(
             textDecoration = TextDecoration.Underline,
         ),
         TokenKind.QUOTE to SpanStyle(color = Color(0xFF4A7A52)),
+        // 补丁：增删除了前景色还给一层很淡的底，整行的边界才扫得出来。
+        // 底色用 alpha 而不是实色——实色会把这一段的正文压暗，浅色主题下尤其明显。
+        TokenKind.INSERTED to SpanStyle(
+            color = Color(0xFF0B6A3A),
+            background = Color(0x1A0B6A3A),
+        ),
+        TokenKind.DELETED to SpanStyle(
+            color = Color(0xFFA3261E),
+            background = Color(0x1AA3261E),
+        ),
+        TokenKind.META to SpanStyle(color = Color(0xFF5F6368)),
+        TokenKind.HUNK to SpanStyle(color = Color(0xFF0B4F9E)),
     ),
 )
 
@@ -98,5 +110,16 @@ private val Dark = HighlightStyles(
             textDecoration = TextDecoration.Underline,
         ),
         TokenKind.QUOTE to SpanStyle(color = Color(0xFF8FAF96)),
+        // 暗色下的底同样用 alpha：编辑器背景本身就是深色，直接给深色实底等于什么都没画
+        TokenKind.INSERTED to SpanStyle(
+            color = Color(0xFF7FD8A0),
+            background = Color(0x2E7FD8A0),
+        ),
+        TokenKind.DELETED to SpanStyle(
+            color = Color(0xFFFF9B93),
+            background = Color(0x2EFF9B93),
+        ),
+        TokenKind.META to SpanStyle(color = Color(0xFFA8B0BA)),
+        TokenKind.HUNK to SpanStyle(color = Color(0xFF9CC7FF)),
     ),
 )

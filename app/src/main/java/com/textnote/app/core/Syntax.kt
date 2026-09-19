@@ -24,6 +24,18 @@ enum class TokenKind {
     LINK,
     QUOTE,
     PUNCTUATION,
+
+    // ---- 下面四个只被 diff 分支产出（见 [scanDiffLine]）。单独列出而不是复用上面某个，
+    // 是因为它们的语义是「这一行在补丁里的角色」，与注释/字符串/关键字不是一回事；
+    // 复用 STRING 或 COMMENT 会让配色被迫跟着那两类走，改一处就撞一处。----
+    /** 新增的行（`+` 开头） */
+    INSERTED,
+    /** 删除的行（`-` 开头） */
+    DELETED,
+    /** 补丁的文件头与元信息（`diff --git`、`index`、`---`、`+++`、`rename from`…） */
+    META,
+    /** 改动块位置（`@@ -12,7 +12,9 @@`） */
+    HUNK,
 }
 
 /** 一个着色片段，[start] 包含、[end] 不包含，偏移是相对**整份文本**的绝对偏移 */
@@ -41,6 +53,18 @@ data class Syntax(
     val id: String,
     val displayName: String,
     val extensions: Set<String>,
+
+    /**
+     * 按**整个文件名**（含点）匹配，与 [extensions] 二选一命中即可。
+     *
+     * 存在的理由：`Makefile`、`Dockerfile`、`CMakeLists.txt`、`.gitignore` 这类文件要么没有
+     * 扩展名、要么扩展名是别人家的（`CMakeLists.txt` 的 `.txt` 是纯文本），光看扩展名永远
+     * 认不出来。名字是**唯一**能识别它们的线索。
+     *
+     * 一律存**小写**，匹配时也把文件名转小写：文件系统大小写敏感，但用户心里的
+     * `Dockerfile` 与 `dockerfile` 是同一个东西。名字里的点要保留（`.gitignore` 整体是一个名字）。
+     */
+    val fileNames: Set<String> = emptySet(),
 
     /** 行注释开头，如 `//`、`#` */
     val lineComment: String? = null,
@@ -90,8 +114,28 @@ data class Syntax(
     val markup: Boolean = false,
     /** 走 Markdown 扫描分支 */
     val markdown: Boolean = false,
+    /**
+     * 走补丁（diff / patch）扫描分支。
+     *
+     * 它是**第四条**分支而不是一串开关：另外三条（代码 / 标记语言 / Markdown）看的是**字符**
+     * ——引号、注释符、关键字；而补丁的语义完全落在**行首前缀**上——`+` 是新增行、`-` 是删除行、
+     * `@@` 是块位置、`diff --git` 是文件头。`total = a + b` 与 `+total = a + b` 的区别不在
+     * 任何字符上，只在「这一行以什么开头」。
+     *
+     * 因此这一支**不给行内做二次分词**：一份补丁要的是「一眼看出增删块」，把关键字也染上色
+     * 反而会把增删的边界淹掉。
+     */
+    val diff: Boolean = false,
 ) {
     companion object {
-        val PLAIN = Syntax(id = "txt", displayName = "Plain Text", extensions = setOf("txt", "log"))
+        val PLAIN = Syntax(
+            id = "txt",
+            displayName = "Plain Text",
+            // csv / tsv 没有语法可着，但它们是常见文本文件，列进来是为了让系统「打开方式」
+            // 与手动选择菜单认得它们（`forFileName` 认不出扩展名时本来就退回纯文本）。
+            extensions = setOf("txt", "log", "text", "csv", "tsv"),
+            fileNames = setOf("readme", "license", "copying", "notice", "authors", "changelog"),
+        )
+
     }
 }

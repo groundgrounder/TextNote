@@ -43,6 +43,24 @@
     <string name="document_too_large_message">Hic fasciculus maior est quam %1$s, dum %2$s tantum in memoriam legi possunt.</string>
     <string name="document_too_large_reason">TextNote totum fasciculum in memoriam legit ut eum ostendat; quare ultra hunc modum apertio memoriam applicationis exhauriret. Si fasciculum alio instrumento in partes diviseris, hic aperire poteris.</string>
     <string name="document_too_large_back">Alium fasciculum eligere</string>
+    <string name="document_not_text_title">Hic fasciculus textus non est</string>
+    <string name="document_not_text_message">Contenta huius fasciculi textus non videntur: materiam binariam, ut byte nullum, continent. Si in instrumento textus eum aperueris, nihil nisi chaos videbis.</string>
+    <string name="document_not_text_hint">Sin autem vere textus est (exempli gratia UTF-16 sine BOM), prius eum in UTF-8 converte, deinde aperi.</string>
+    <string name="document_not_text_back">Alium fasciculum eligere</string>
+
+    <string name="diagnostics_count">Vitia · %1$d</string>
+    <string name="diagnostics_desc">Vitia: %1$d. Tange ut ad proximum salias.</string>
+    <string name="diagnostic_at_line">Linea %1$d: %2$s</string>
+    <string name="diag_expected_value">Valor JSON expectatus, «%1$s» inventum</string>
+    <string name="diag_expected_colon">Post clavem «:» deest</string>
+    <string name="diag_expected_comma">Inter elementa «,» deest</string>
+    <string name="diag_expected_end">Unus tantum valor summus licitus est</string>
+    <string name="diag_unclosed_string">Littera non clausa</string>
+    <string name="diag_unclosed_bracket">«%1$s» numquam clauditur</string>
+    <string name="diag_bad_escape">«%1$s» fuga non valida est</string>
+    <string name="diag_trailing_comma">Comma supervacanea</string>
+    <string name="diag_duplicate_key">Clavis «%1$s» iterata</string>
+    <string name="diag_too_deep">Nimis alte insertum</string>
     <string name="document_read_only">Tantum legendum — %1$d notae modum %2$s mutandi excedunt; legere et quaerere potes, scribere non potes.</string>
     <string name="document_slow">Fasciculus magnus (%1$d notae) — scriptura haesitare potest</string>
     <string name="readonly_line_truncated">⋯ in hoc versu %1$d notae, praecisae</string>

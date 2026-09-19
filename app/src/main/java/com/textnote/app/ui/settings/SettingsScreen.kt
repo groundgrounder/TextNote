@@ -340,7 +340,6 @@ private fun SwitchRow(
     }
 }
 
-/** 预览卡：与编辑区共用同一份样式，改字号/行距/字体这里立刻看得见 */
 /**
  * 一行等宽的单选项（外观三档、字体三档），铺满整行宽度。
  *
@@ -428,6 +427,12 @@ private fun SteppedSlider(
     }
 }
 
+/**
+ * 预览卡：与编辑区共用同一份样式，改字号 / 行距 / 字体这里立刻看得见。
+ *
+ * 只演示正文与语法色，**不反映软换行**——下面那三行短到根本不会折行，看不出来；
+ * 那一项要验只能回编辑器里看真实文档。
+ */
 @Composable
 private fun PreviewCard(dark: Boolean) {
     val style = LocalEditorTextStyle.current

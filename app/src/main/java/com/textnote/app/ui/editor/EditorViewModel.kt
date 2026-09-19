@@ -11,6 +11,8 @@ import androidx.compose.ui.text.TextRange
 import androidx.compose.ui.text.input.TextFieldValue
 import androidx.lifecycle.ViewModel
 import androidx.lifecycle.viewModelScope
+import com.textnote.app.core.Diagnostic
+import com.textnote.app.core.DiagnosticEngine
 import com.textnote.app.core.EditorLimits
 import com.textnote.app.core.HighlightToken
 import com.textnote.app.core.Highlighter
@@ -78,10 +80,21 @@ class EditorViewModel(
      * 标题为空、正文为空的编辑器。旋转屏幕时 ViewModel 还活着，两种判据都成立，不会误伤。
      *
      * [fileName] 是可观察状态，且成功与失败两条路都会设上它，所以拿它当「有没有文档」的
-     * 主判据；另外三种状态各自对应一个「正在给用户交代」的界面。
+     * 主判据；另外四种状态各自对应一个「正在给用户交代」的界面。
      */
     val hasDocument: Boolean
-        get() = fileName.isNotEmpty() || loading || unavailable || tooLarge != null
+        get() = fileName.isNotEmpty() || loading || unavailable || notText || tooLarge != null
+
+    /**
+     * **正文能不能显示**。四种「没有正文」的情况都收在这里：
+     * 读不动（[tooLarge]）、读不到（[unavailable]）、不是文本（[notText]）、还在读（[loading]）。
+     *
+     * 单独抽出来是因为界面要在**四处**挡住「没有正文」时的功能（查找、保存、另存为、状态栏）。
+     * 原先每个调用点各自列一遍那三个条件，加第四种状态时漏一处就会露出破绽——
+     * 而破绽的形式是「状态栏报 0 字符 · 1 行」这种关于一份并不存在的文档的假信息。
+     */
+    val showsText: Boolean
+        get() = !loading && !unavailable && !notText && tooLarge == null
 
     var writable by mutableStateOf(true)
         private set
@@ -111,6 +124,14 @@ class EditorViewModel(
      * 给用户的下一步动作完全不同。
      */
     var tooLarge by mutableStateOf<OpenResult.TooLarge?>(null)
+        private set
+
+    /**
+     * 读得到，但内容不是文本（二进制）。与 [tooLarge] 同样是「能力边界」，但原因不同：
+     * 那个是「太大」，这个是「用文本编辑器看它没有意义」。两者给用户的交代也不一样，
+     * 所以是两个字段而不是一个带原因的错误。
+     */
+    var notText by mutableStateOf(false)
         private set
 
     /** 需要跳到的行（只读浏览用）。LazyColumn 能按下标直接跳，不必算 y 偏移 */
@@ -311,6 +332,23 @@ class EditorViewModel(
     val search = EditorSearch { searchText }
 
     /**
+     * 本地单文件分析的结论（目前只有 JSON 校验，见 [DiagnosticEngine]）。
+     *
+     * 它与着色有本质区别：着色是**每次编辑重算的派生结果**，而诊断是「上一次分析时的结论」，
+     * 正文一变就过期。所以渲染前必须夹取区间（与命中高亮同一套做法），并且每次输入后
+     * 隔 [ANALYSIS_DEBOUNCE_MS] 重跑一遍。
+     *
+     * 空列表的语义是「没问题」或「这份文件不做分析」——两者对界面是一回事。
+     */
+    var diagnostics by mutableStateOf<List<Diagnostic>>(emptyList())
+        private set
+
+    private var analysisJob: Job? = null
+
+    /** 「跳到下一个问题」的游标。每轮分析重算后归零，否则会停在一个已经不存在的位置上。 */
+    private var diagnosticCursor = 0
+
+    /**
      * 需要滚进视野的字符偏移，由 [findNext] / [findPrev] / 替换操作设置。
      *
      * 为什么不直接靠选中：Compose 的 BasicTextField 只在**自己获得焦点**时才会把光标滚进
@@ -330,6 +368,7 @@ class EditorViewModel(
         field = value
         scheduleSearchReindex()
         search.clampIndex()
+        scheduleAnalysis()
         scheduleDraftSave()
     }
 
@@ -340,6 +379,61 @@ class EditorViewModel(
             delay(SEARCH_DEBOUNCE_MS)
             searchText = this@EditorViewModel.field.text
         }
+    }
+
+    /**
+     * 安排一次本地分析。[immediate] 用于离散动作（打开文件、撤销、换语法）——
+     * 那些时刻用户在等结果，防抖只会显得迟钝；连续输入才需要防抖。
+     *
+     * ⚠️ **凡是整份正文被换掉的地方都必须调它**，一处都不能漏。当前清单：
+     * `open()`、`onFieldChange()`、`applyOutcome()`（撤销/重做）、`selectSyntax()`、
+     * `replaceCurrent()`、`replaceAll()`、`restoreDraft()`。
+     * 漏掉的后果是**静默的陈旧数据**：正文已经换了，界面上还标着上一份正文的问题
+     * （渲染时的区间夹取只保证不崩，不保证内容是对的）。历史上同一个形状的坑出现过：
+     * 三处漏了 `refreshUndoState()`，替换完撤销按钮一直是灰的。
+     */
+    private fun scheduleAnalysis(immediate: Boolean = false) {
+        analysisJob?.cancel()
+        analysisJob = viewModelScope.launch {
+            if (!immediate) delay(ANALYSIS_DEBOUNCE_MS)
+            runAnalysis()
+        }
+    }
+
+    /**
+     * 跑一次分析并落结果。
+     *
+     * 分析是 O(n) 纯计算，放 Default 上；但**必须把参与分析的那份文本一起快照**，
+     * 回来时比对正文是否仍是那一份——分析比一次查找扫描贵，中间用户完全可能又敲了几个字，
+     * 不比对的话下划线会落在已经挪位的字符上。代号（[documentToken]）也一并比：
+     * 两份内容恰好相同的文档不该互相覆盖结果。
+     */
+    private suspend fun runAnalysis() {
+        val token = documentToken
+        val text = this.field.text
+        val syntaxNow = syntax
+        val name = fileName
+        val found = withContext(Dispatchers.Default) {
+            DiagnosticEngine.analyze(text, syntaxNow, name)
+        }
+        if (stale(token) || this.field.text != text) return
+        diagnostics = found
+        diagnosticCursor = 0
+    }
+
+    /**
+     * 跳到下一个问题，返回跳到的那个（界面据此提示「第 N 行：…」）。到末尾后回到第一个。
+     *
+     * 为什么不做「问题列表」面板：手机上真正高频的动作是「带我去看看」，而不是「读一列消息」。
+     * 跳转复用了查找那套一次性滚动请求，零新增机制。
+     */
+    fun jumpToNextDiagnostic(): Diagnostic? {
+        val list = diagnostics
+        if (list.isEmpty()) return null
+        val target = list[diagnosticCursor % list.size]
+        diagnosticCursor = (diagnosticCursor + 1) % list.size
+        scrollToOffset = target.start
+        return target
     }
 
     /**
@@ -379,6 +473,8 @@ class EditorViewModel(
         syncSearchText()
         search.clampIndex()
         scrollToOffset = caret
+        // 撤销/重做是离散动作，分析立刻重跑：刚撤掉的那处错误该马上消失
+        scheduleAnalysis(immediate = true)
         scheduleDraftSave()
     }
 
@@ -390,6 +486,7 @@ class EditorViewModel(
         documentToken++
         tooLarge = null
         unavailable = false
+        notText = false
         loading = false
         fileName = ""
         search.close()
@@ -405,7 +502,7 @@ class EditorViewModel(
      * 旧文件的内容写回旧位置。这种错位比直接报错危险，所以宁可清空。
      *
      * 只有 [currentUri] 及其**派生状态**在这一层；告知用户「是哪个文件出了问题」的
-     * [fileName] / [unavailable] / [tooLarge] 由调用方按需要保留或清除。
+     * [fileName] / [unavailable] / [tooLarge] / [notText] 由调用方按需要保留或清除。
      */
     private fun clearCurrentDocument() {
         readOnly = false
@@ -423,6 +520,11 @@ class EditorViewModel(
         searchTextJob?.cancel()
         searchTextJob = null
         searchText = ""
+        // 诊断同理：它是对**某一份正文**的结论，正文清空了就不该再挂着，
+        // 否则切到新文档前那一瞬会看到上一份文件的红下划线。
+        analysisJob?.cancel()
+        analysisJob = null
+        diagnostics = emptyList()
         // 查找面板也要收起来：它显示的是上一份文档的命中数，而此刻界面上已经
         // 没有可搜的正文了（打开失败时也会走到这里，不只是 closeDocument）。
         search.close()
@@ -463,6 +565,8 @@ class EditorViewModel(
     fun selectSyntax(target: Syntax?) {
         manualSyntax = target
         applySyntax()
+        // 换语法会换一套分析器（甚至从「不分析」变成「分析」），立刻重跑
+        scheduleAnalysis(immediate = true)
         val uri = currentUri ?: return
         viewModelScope.launch(Dispatchers.IO) {
             if (target == null) syntaxOverrides.clear(uri) else syntaxOverrides.set(uri, target)
@@ -480,6 +584,13 @@ class EditorViewModel(
             unavailable = false
             pendingDraft = null
             tooLarge = null
+            notText = false
+            // 诊断也要一起清：它是对**上一份正文**的结论。成功路径下新正文会在下面整批落下，
+            // 而新分析还要等一次调度，中间这段时间旧诊断会盖在新正文上——渲染时的区间夹取
+            // 只保证不崩，不保证内容还是对的。
+            analysisJob?.cancel()
+            analysisJob = null
+            diagnostics = emptyList()
             readOnly = false
             scrollToLine = null
             // 不在这里清的话，上一份文档留下的滚动请求会作用到**新文档**上：它由界面在
@@ -493,15 +604,16 @@ class EditorViewModel(
             if (stale(token)) return@launch
             fileName = name
 
-            // ⚠️ 这个校验必须紧跟在挂起点之后。下面两个失败分支除写 [unavailable]/[tooLarge] 之外
-            // 还会 [clearCurrentDocument]，若放任它们落在**两次打开交错**的时候，就会盖到新文档
+            // ⚠️ 这个校验必须紧跟在挂起点之后。下面三个失败分支除写
+            // [unavailable]/[tooLarge]/[notText] 之外还会 [clearCurrentDocument]，若放任它们落在
+            // **两次打开交错**的时候，就会盖到新文档
             // 头上：新文档的成功路径不复位这两个字段（它们只在 `open()` 开头复位，那时这次调用
             // 还没返回），于是界面显示「标题是新文件、正文却是『打不开 / 文件过大』」，状态栏与
             // 保存一起消失。这正是 [documentToken] 那套代号要挡的交错。
             if (stale(token)) return@launch
 
-            // 体积上限的判断在仓库里做（只有那里知道到底读了几个字节），这里只按结果分流。
-            // 三种结果要给用户三种完全不同的交代，所以用 when 而不是叠 if。
+            // 体积与「是不是文本」的判断都在仓库里做（只有那里拿到了字节），这里只按结果分流。
+            // 四种结果要给用户四种完全不同的交代，所以用 when 而不是叠 if。
             val loaded = when (val result = repository.openDocument(uri)) {
                 is OpenResult.Unavailable -> {
                     unavailable = true
@@ -513,6 +625,12 @@ class EditorViewModel(
                 }
                 is OpenResult.TooLarge -> {
                     tooLarge = result
+                    loading = false
+                    clearCurrentDocument()
+                    return@launch
+                }
+                is OpenResult.NotText -> {
+                    notText = true
                     loading = false
                     clearCurrentDocument()
                     return@launch
@@ -541,6 +659,11 @@ class EditorViewModel(
             field = TextFieldValue(doc.text)
             baselineText = doc.text
             searchText = doc.text
+            // 正文整份换过了，而查找面板可能正开着：它的「第 N / M 处」是按上一份正文算的，
+            // 不复位就会显示「6 / 2」这种矛盾数字（见 EditorSearch.resetPosition）。
+            // 这里刻意用重置而不是 clampIndex：旧序号在这份正文里**没有对应物**，夹回来也只是
+            // 把强调色挪到一处用户从没跳过去的命中上。
+            search.resetPosition()
             undoStack.clear() // 换了一份文档，上一份的撤销历史没有意义
             refreshUndoState()
             encoding = doc.encoding
@@ -551,6 +674,9 @@ class EditorViewModel(
             manualSyntax = overrideId?.let { SyntaxRegistry.byId(it) }
             applySyntax()
             loading = false
+
+            // 打开后立刻分析一次（不防抖）：刚打开就该看到问题，而不是先干净一会儿再标红
+            scheduleAnalysis(immediate = true)
 
             // 慢文档留个记录。打开大文件时这几个数字能直接指出瓶颈在读取、还是在我们自己
             // 的索引构造（剩下的差额就是 Compose 首次排版整篇文本）。比反复猜要省事。
@@ -704,7 +830,7 @@ class EditorViewModel(
      */
     fun checkExternalChange() {
         val uri = currentUri ?: return
-        if (loading || unavailable || tooLarge != null) return
+        if (loading || unavailable || notText || tooLarge != null) return
         val base = baseline
         // 这次检测针对的是哪一份文档。检测要跨进程问 provider、可编辑时还要重读全文，中间
         // 用户完全可能换了文件——那就既不该报「被改过」，更不该把别的文件的基准写进 [baseline]。
@@ -739,6 +865,10 @@ class EditorViewModel(
             when (result) {
                 is OpenResult.Unavailable -> externalChange = ExternalChange.Gone
                 is OpenResult.TooLarge -> Unit // 变成超大文件了，先不动，等下次打开再说
+                // 文件内容变成了二进制（例如被别的应用改写成别的格式）：
+                // 这条路径上不做任何事——把用户正在看的内容换成「不是文本」的失败页，
+                // 比留着可能已经过期的正文更糟。重开时才走拒绝分支。
+                is OpenResult.NotText -> Unit
                 is OpenResult.Loaded -> {
                     // baselineText 在这里读（挂起之后）而不是开头：期间用户可能刚好保存过，
                     // 那就该拿最新的那一份当基准，否则会把这次保存自己报成外部改动。
@@ -904,6 +1034,8 @@ class EditorViewModel(
         field = TextFieldValue(text, TextRange(caret))
         syncSearchText()
         scrollToOffset = caret
+        // 正文整份换过了，诊断必须重跑（见 scheduleAnalysis 的清单）
+        scheduleAnalysis(immediate = true)
         // 按光标重定位，不能沿用旧序号：替换串比匹配串长、且自身还能被搜到时
         // （cat -> catalog），重算后的 matches[旧序号] 指向的正是刚插入的内容，
         // 连按替换会永远停在原地并且让文本越来越长。
@@ -933,6 +1065,8 @@ class EditorViewModel(
             field = TextFieldValue(text, TextRange(caret))
             syncSearchText()
             search.clampIndex()
+            // 替换全部动的是整篇，诊断必须立刻重算（见 scheduleAnalysis 的清单）
+            scheduleAnalysis(immediate = true)
             scheduleDraftSave()
         }
         return count
@@ -955,6 +1089,9 @@ class EditorViewModel(
         search.clampIndex()
         scrollToOffset = 0
         pendingDraft = null
+        // 草稿把正文整个换掉了，诊断必须重算（见 scheduleAnalysis 的清单）：
+        // 恢复出来的草稿很可能正是「有问题的那一版」，界面要立刻把它标出来
+        scheduleAnalysis(immediate = true)
     }
 
     /** 丢弃草稿：用户明确选择了文件里的版本，草稿就没有存在理由了 */
@@ -1040,6 +1177,15 @@ class EditorViewModel(
 
         /** 查找面板里关键词与正文共用的防抖延迟。见 [searchText] 与 `EditorSearch.query` */
         const val SEARCH_DEBOUNCE_MS = 150L
+
+        /**
+         * 输入后延迟多久重跑本地分析。
+         *
+         * 比查找的 150ms 长一倍：分析是一次全篇扫描（查找也扫，但它的结果直接决定面板计数，
+         * 慢一点用户就看得见），而诊断在打字过程中**不需要实时**——下划线晚 300ms 出现
+         * 完全不影响打字，但每个字符都重跑一次全篇扫描是要花钱的。
+         */
+        const val ANALYSIS_DEBOUNCE_MS = 300L
         const val LOG_TAG = "TextNote"
         /** 超过这个耗时就打日志，方便用户反馈「打开很慢」时直接定位 */
         const val SLOW_OPEN_MS = 250L
