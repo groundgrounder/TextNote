@@ -1,6 +1,6 @@
 # TextNote
 
-A lightweight Android text editor · byte-exact · Kotlin + Jetpack Compose + Material 3
+A lightweight Android text editor · byte-exact
 
 **English** | [简体中文](README.zh-CN.md)
 
@@ -12,103 +12,97 @@ A lightweight Android text editor · byte-exact · Kotlin + Jetpack Compose + Ma
   <img src="docs/screenshots/settings.png" width="30%" alt="Settings">
 </p>
 
-For people who open a file, change two lines and put it back. **Fidelity comes first**: open a file,
-save it without touching anything, and not one byte should have changed — encoding, line endings and
-BOM all go back exactly as they came.
+Open a file, change two words, save — and nothing about the file should have changed. That's what
+TextNote is for: UTF-8, GB18030 and BOM'd UTF-16, LF, CRLF and CR line endings, read and written
+back exactly as they came, byte for byte.
 
 ## Features
 
 **Writing**
 
-- Editing, undo/redo (consecutive typing coalesces into one step), find and replace
-  (regex / case / whole word / `$1` templates)
-- Hardware keyboards: `Ctrl+Z` to undo, `Ctrl+Shift+Z` / `Ctrl+Y` to redo
-- A status bar that always shows the document facts: encoding, line endings, syntax, problem count,
+- Undo, redo, find and replace (regex, match case, whole word, `$1` templates)
+- On a hardware keyboard: `Ctrl+Z` to undo, `Ctrl+Shift+Z` or `Ctrl+Y` to redo
+- The bar along the bottom always tells you what you're looking at: encoding, line endings, syntax,
   line and column, characters and lines
 
 **Reading**
 
-- Syntax highlighting for 34 languages, picked by file **name**: the whole name first
-  (`Makefile`, `Dockerfile`, `CMakeLists.txt`, `.gitignore`), then the extension — overridable per
-  file and **remembered per file**
-- Patches (`.diff` / `.patch` / `.rej`) are coloured by **line prefix**, so added and removed
-  blocks stand out at a glance
-- A line-number gutter; once a large file switches to read-only browsing, find and jump still work
+- Syntax highlighting for 34 languages, picked by file name — it knows `Makefile`, `Dockerfile`,
+  `CMakeLists.txt` and `.gitignore`; you can also choose a language yourself, and it remembers, so
+  the next time you open that file it's still the one you picked
+- A line-number gutter; `.diff` / `.patch` / `.rej` are coloured by their leading `+` and `-`, so
+  you can see what changed at a glance
 
-**Not breaking your file**
+**Keeping your file safe**
 
-- Byte-exact round trip: encoding (UTF-8 / GB18030 / BOM) and line endings (LF / CRLF / CR) are
-  detected on read and preserved on write; a file mixing several endings says so
-- Drafts are flushed the moment the app goes to the background; it only asks "restore / discard"
-  when the draft **actually differs** from the file, and never applies it on its own; drafts are
-  kept for 30 days, and the home screen warns before one expires
-- If another app changes the file, you get told — it is not applied behind your back
-- A file that isn't text (null bytes, mostly unprintable characters) is refused with a reason
-  instead of being shown as a screen of garbage
+- If a file mixes several kinds of line ending, it says so — saving with any one of them would
+  rewrite part of the file
+- A draft is saved the moment you leave the app; you're only asked "restore or discard" when the
+  draft really is different from the file, and it never decides for you. Drafts are kept for 30
+  days, and the home screen warns you before one expires
+- If another app changes the file, you're told — what you're looking at isn't touched
+- A file that isn't text (null bytes, control characters) is refused with a reason instead of a
+  screen of gibberish
 
-**Limits and safeguards**
+**Large files**
 
-- Large files come in three tiers: past 64k characters highlighting stops and a warning appears,
-  past 200k characters the file becomes **read-only**, past 4 MB it refuses to open at all
-  (rather than gambling with memory)
-- JSON is validated as you type: the first syntax error is marked in place, the status bar shows the
-  problem count, and tapping it jumps there and says what's wrong; `.jsonc` / `.json5` are checked
-  leniently (comments and trailing commas allowed)
+- Past 64k characters: no more highlighting, plus a warning that typing may feel slow
+- Past 200k characters: read-only, but find and jump still work
+- Past 4 MB: it won't open at all — reading that much into memory would bring the app down, and
+  that's a memory problem rather than a comfort one
+
+**JSON**
+
+- Checked as you type: the first error is marked in the text, the status bar shows how many there
+  are, and tapping it jumps there and says what's wrong
+- `.jsonc` and `.json5` are checked leniently: comments and trailing commas are fine
 
 **Appearance**
 
-- Theme: follow system / light / dark, with dynamic color (Android 12+)
-- Font family, size and line spacing; soft wrap can be turned off (off means horizontal scrolling)
+- Follow the system, light or dark, with dynamic colour (Android 12 and up)
+- Font, size and line spacing are adjustable, and soft wrap can be turned off (off means sideways
+  scrolling)
 - UI language: follow system / English / 简体中文 / 繁體中文 / Latina
-- Multi-window: two documents side by side in split screen or on the desktop, each with its own
-  edits; long-press a recent entry for "Open in new window"
+- Two documents side by side in split screen or a desktop window, each with its own edits;
+  long-press a recent file for "Open in new window"
 
 ## Download
 
-Grab `TextNote-vX.Y.Z.apk` from
-[Releases](https://github.com/groundgrounder/TextNote/releases/latest) and install it (you'll need
-to allow "install unknown apps" the first time). Requires Android 8.0 (API 26) or newer.
+Get `TextNote-vX.Y.Z.apk` from
+[Releases](https://github.com/groundgrounder/TextNote/releases/latest) and install it (the first
+install needs "install unknown apps" allowed). Android 8.0 and up.
 
 ## Usage
 
-- **Open file** goes through the system file picker; **New file** starts from scratch
-- Pick TextNote straight from a file manager: matching is by MIME (`text/*` plus a set of
-  `application/*` types), with a long list of source and config extensions as a fallback
-- **Share a text file** to TextNote from another app and it opens just the same
-- No storage permission is requested: every read and write goes through the picker's grant
+- "Open file" goes through the system picker; "New file" starts you off empty
+- Pick TextNote from a file manager, or share a text file to it from another app
+- No storage permission is requested — reading and writing go through the one-off grant the system
+  picker gives you
 
-## Known limits (deliberate trade-offs)
+## Known limits
 
-- **No Markdown preview**: this is a plain-text editor, not a Markdown app
-- **Highlighting is a line-by-line approximation**, not a compiler front end: nested block comments,
-  Rust raw strings `r#"…"#` and Ruby / Shell heredocs are not parsed — a multi-line construct is
-  recognised as one opening delimiter plus one closing delimiter
-- **"Is this text?" is judged on the decoded content**: UTF-16 with a BOM opens fine; UTF-16 without
-  a BOM, and a null byte past the first 8,000 characters, are the known blind spots
-- **Checks are local and single-file** (JSON only so far): there is no language server, so no
-  completion, hover or go-to-definition, and no project-wide analysis
-- **No bundled fonts** — only the three system families; columns are counted in UTF-16 code units,
-  so an emoji takes two
-- **Soft wrap only applies to editable documents**: read-only browsing of large files loads line by
-  line, and wrapping would mean re-running line breaking for every one of them, so it never wraps
-- **Big5 is not detected separately**: GB18030 covers its encoding space, and fidelity holds as long
-  as the same encoding is written back
+- No Markdown preview: this is a plain-text editor
+- Highlighting guesses, line by line — it isn't a compiler: nested block comments, Rust's
+  `r#"…"#` and Ruby / Shell heredocs aren't parsed, and a multi-line construct is understood as
+  just "one opening token plus one closing token"
+- UTF-16 without a BOM is treated as binary (convert it to UTF-8 in another tool and it opens
+  fine); a null byte past the first 8,000 characters goes unnoticed
+- Checks are local and single-file (JSON for now): no completion, no hover, no go-to-definition,
+  and no project-wide analysis
+- No bundled fonts — the three system families only; columns count UTF-16 units, so an emoji
+  takes two
+- Soft wrap applies to editable documents only: read-only browsing loads line by line, and
+  wrapping would mean re-measuring every one of them, so it doesn't wrap
+- Big5 isn't detected separately: GB18030 already covers its encoding space
 
-## Building from source
+## Building it yourself
 
-JDK 17 and the Android SDK (`sdk.dir` in `local.properties`).
+You'll need JDK 17 and the Android SDK (`sdk.dir` in `local.properties`):
 
 ```bash
 ./gradlew assembleDebug
 adb install -r app/build/outputs/apk/debug/app-debug.apk
 ```
-
-## Architecture
-
-`core/` is pure Kotlin — no `androidx.compose.*`, no `android.*`, so its assertions run under a
-plain JVM. `data/` holds SAF I/O and drafts; `ui/` is the Compose layer. The swappable kernel is
-enforced by package boundaries rather than a fat interface: `ui/` only talks to
-`EditorViewModel`'s state. Those assertions need no emulator, and CI runs them on every push.
 
 ## License
 
