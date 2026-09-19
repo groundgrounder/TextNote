@@ -1,6 +1,6 @@
 # TextNote
 
-A lightweight Android text editor · byte-exact
+A lightweight Android text editor · edits the files already on your device · no storage permission, no network
 
 **English** | [简体中文](README.zh-CN.md)
 
@@ -12,45 +12,71 @@ A lightweight Android text editor · byte-exact
   <img src="docs/screenshots/settings.png" width="30%" alt="Settings">
 </p>
 
-Open a file, change two words, save — and nothing about the file should have changed. That's what
-TextNote is for: UTF-8, GB18030 and BOM'd UTF-16, LF, CRLF and CR line endings, read and written
-back exactly as they came, byte for byte.
+## What it is
+
+A plain-text editor for your phone — for config files, logs, scripts, or a couple of lines you want
+to jot down. Open a file, change two lines, save it, and nothing about the file should have changed.
+
+- **Unchanged when you save**: a GBK config stays GBK, a CRLF script stays CRLF — you don't have to
+  reformat a file just to change two lines
+- **No computer needed**: server configs, `.env` files, startup scripts and logs — the files you'd
+  normally open a laptop to change
+- **Big files stay readable**: a log running to hundreds of thousands of characters switches to
+  read-only browsing, where paging, searching and jumping all still work
+- **Free and open source, no account, no network, no storage permission**: reading and writing go
+  through the one-off grant the system file picker gives you
+
+## Download
+
+Grab the latest APK (`TextNote-vX.Y.Z.apk`) from
+[Releases](https://github.com/groundgrounder/TextNote/releases).
+
+- Requires Android 8.0 (API 26) or newer
+- The APK does not come from an app store, so on first install the system will ask you to allow
+  installs from unknown sources
 
 ## Features
 
-**Writing**
+**Files**
 
-- Undo, redo, find and replace (regex, match case, whole word, `$1` templates)
-- On a hardware keyboard: `Ctrl+Z` to undo, `Ctrl+Shift+Z` or `Ctrl+Y` to redo
-- The bar along the bottom always tells you what you're looking at: encoding, line endings, syntax,
-  line and column, characters and lines
-
-**Reading**
-
-- Syntax highlighting for 34 languages, picked by file name — it knows `Makefile`, `Dockerfile`,
-  `CMakeLists.txt` and `.gitignore`; you can also choose a language yourself, and it remembers, so
-  the next time you open that file it's still the one you picked
-- A line-number gutter; `.diff` / `.patch` / `.rej` are coloured by their leading `+` and `-`, so
-  you can see what changed at a glance
-
-**Keeping your file safe**
-
-- If a file mixes several kinds of line ending, it says so — saving with any one of them would
-  rewrite part of the file
-- A draft is saved the moment you leave the app; you're only asked "restore or discard" when the
-  draft really is different from the file, and it never decides for you. Drafts are kept for 30
-  days, and the home screen warns you before one expires
+- Open: tap a text file in any file manager and pick "Open with TextNote" — or share it to TextNote
+  from another app
+- Create: tap "New file", pick a location and a name, and start writing
+- Encoding and line endings untouched: UTF-8, GB18030, GBK and BOM'd UTF-16 all read correctly, and
+  a file is saved back the way it came; if a file mixes several kinds of line ending, it says so
+- Recent files: everything you open stays on the home screen and survives a reboot. Remove an entry
+  you no longer need without touching the file; anything that can no longer be read is flagged, and
+  tapping it walks you through granting access again
+- Your changes are kept: it never writes to your file on its own — **it saves when you tell it to** —
+  but the moment you leave the app a draft is stored inside the app, so a backgrounded process
+  can't lose your work; next time it asks whether to restore it. Drafts are kept for 30 days, and
+  the home screen warns you before one expires
 - If another app changes the file, you're told — what you're looking at isn't touched
+- How big is too big: up to 64k characters everything is editable; past that highlighting stops and
+  a warning appears; past 200k the file becomes read-only; past 4 MB it won't open at all — reading
+  that much into memory would bring the app down
 - A file that isn't text (null bytes, control characters) is refused with a reason instead of a
   screen of gibberish; UTF-16 without a BOM reads as binary, for instance — convert it to UTF-8 in
   another tool and it opens fine
 
-**Large files**
+**Editing**
 
-- Past 64k characters: no more highlighting, plus a warning that typing may feel slow
-- Past 200k characters: read-only, but find and jump still work
-- Past 4 MB: it won't open at all — reading that much into memory would bring the app down, and
-  that's a memory problem rather than a comfort one
+- Undo and redo: consecutive typing counts as one step, and the buttons grey out when there's
+  nothing left
+- Find and replace: shows "match 3 of 12", wraps around, replaces just this one or all of them;
+  supports regex, match case and whole word, and `$1` in the replacement for captured groups
+- On a hardware keyboard: `Ctrl+Z` to undo, `Ctrl+Shift+Z` or `Ctrl+Y` to redo
+- The bar along the bottom always tells you what you're looking at: encoding, line endings, syntax,
+  problem count, line and column, characters and lines
+
+**Highlighting**
+
+- Syntax highlighting for 34 languages, picked by file name — it knows `Makefile`, `Dockerfile`,
+  `CMakeLists.txt` and `.gitignore`; you can also choose a language yourself, and it remembers, so
+  the next time you open that file it's still the one you picked
+- `.diff` / `.patch` / `.rej` are coloured by their leading `+` and `-`, so you can see what changed
+  at a glance
+- A line-number gutter
 
 **JSON**
 
@@ -59,36 +85,20 @@ back exactly as they came, byte for byte.
   wrong
 - `.jsonc` and `.json5` are checked leniently: comments and trailing commas are fine
 
-**Appearance**
+**Multi-window**
 
-- Follow the system, light or dark, with dynamic colour (Android 12 and up)
+- One window, one document: open several at once in split screen or in desktop windows on a tablet,
+  each with its own edits
+- Open another: long-press a recent file and pick "Open in new window". The same file never opens a
+  second editor, so two windows can't overwrite each other's work
+
+**Appearance and language**
+
+- Follow the system, light or dark, with wallpaper-based colour (Android 12 and up)
 - Font, size and line spacing are adjustable, and soft wrap can be turned off (off means sideways
   scrolling)
-- UI language: follow system / English / 简体中文 / 繁體中文 / Latina
-- Two documents side by side in split screen or a desktop window, each with its own edits;
-  long-press a recent file for "Open in new window"
-
-## Download
-
-Get `TextNote-vX.Y.Z.apk` from
-[Releases](https://github.com/groundgrounder/TextNote/releases/latest) and install it (the first
-install needs "install unknown apps" allowed). Android 8.0 and up.
-
-## Usage
-
-- "Open file" goes through the system picker; "New file" starts you off empty
-- Pick TextNote from a file manager, or share a text file to it from another app
-- No storage permission is requested — reading and writing go through the one-off grant the system
-  picker gives you
-
-## Building it yourself
-
-You'll need JDK 17 and the Android SDK (`sdk.dir` in `local.properties`):
-
-```bash
-./gradlew assembleDebug
-adb install -r app/build/outputs/apk/debug/app-debug.apk
-```
+- Four UI languages: English, 简体中文, 繁體中文 and Latina; follows the system by default, and you
+  can switch inside the app
 
 ## License
 
