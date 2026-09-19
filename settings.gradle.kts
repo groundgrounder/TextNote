@@ -31,6 +31,12 @@ pluginManagement {
 val officialReposOnly = System.getenv("GITHUB_ACTIONS") == "true" ||
     System.getenv("TEXTNOTE_OFFICIAL_REPOS") == "1"
 
+// 在 CI 的构建日志里留一行标记：出了问题（比如又撞上镜像 5xx）时，一眼就能确认这次走的是哪套仓库，
+// 不必靠推测。本地不打——否则每次 gradlew 都刷一行，噪音盖过价值。
+if (officialReposOnly) {
+    println("[TextNote] 依赖仓库 = 官方源（Google / Maven Central，未使用 aliyun 镜像）")
+}
+
 dependencyResolutionManagement {
     repositoriesMode.set(RepositoriesMode.FAIL_ON_PROJECT_REPOS)
     repositories {
