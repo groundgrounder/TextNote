@@ -42,7 +42,8 @@ back exactly as they came, byte for byte.
   days, and the home screen warns you before one expires
 - If another app changes the file, you're told — what you're looking at isn't touched
 - A file that isn't text (null bytes, control characters) is refused with a reason instead of a
-  screen of gibberish
+  screen of gibberish; UTF-16 without a BOM reads as binary, for instance — convert it to UTF-8 in
+  another tool and it opens fine
 
 **Large files**
 
@@ -53,8 +54,9 @@ back exactly as they came, byte for byte.
 
 **JSON**
 
-- Checked as you type: the first error is marked in the text, the status bar shows how many there
-  are, and tapping it jumps there and says what's wrong
+- Checked as you type, entirely on the device with no network involved: the first error is marked
+  in the text, the status bar shows how many there are, and tapping it jumps there and says what's
+  wrong
 - `.jsonc` and `.json5` are checked leniently: comments and trailing commas are fine
 
 **Appearance**
@@ -78,22 +80,6 @@ install needs "install unknown apps" allowed). Android 8.0 and up.
 - Pick TextNote from a file manager, or share a text file to it from another app
 - No storage permission is requested — reading and writing go through the one-off grant the system
   picker gives you
-
-## Known limits
-
-- No Markdown preview: this is a plain-text editor
-- Highlighting guesses, line by line — it isn't a compiler: nested block comments, Rust's
-  `r#"…"#` and Ruby / Shell heredocs aren't parsed, and a multi-line construct is understood as
-  just "one opening token plus one closing token"
-- UTF-16 without a BOM is treated as binary (convert it to UTF-8 in another tool and it opens
-  fine); a null byte past the first 8,000 characters goes unnoticed
-- Checks are local and single-file (JSON for now): no completion, no hover, no go-to-definition,
-  and no project-wide analysis
-- No bundled fonts — the three system families only; columns count UTF-16 units, so an emoji
-  takes two
-- Soft wrap applies to editable documents only: read-only browsing loads line by line, and
-  wrapping would mean re-measuring every one of them, so it doesn't wrap
-- Big5 isn't detected separately: GB18030 already covers its encoding space
 
 ## Building it yourself
 
